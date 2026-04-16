@@ -27,12 +27,12 @@
 
 ## Страницы demo (6)
 
-- `SCREEN_ID_LOAD`
-- `SCREEN_ID_MAIN_MENU`
-- `SCREEN_ID_DEF_PAGE1`
-- `SCREEN_ID_DEF_PAGE2`
-- `SCREEN_ID_DEF_PAGE3`
-- `SCREEN_ID_DEF_PAGE4`
+- `SCREEN32_PAGE_ID_LOAD`
+- `SCREEN32_PAGE_ID_MAIN_MENU`
+- `SCREEN32_PAGE_ID_DEF_PAGE1`
+- `SCREEN32_PAGE_ID_DEF_PAGE2`
+- `SCREEN32_PAGE_ID_DEF_PAGE3`
+- `SCREEN32_PAGE_ID_DEF_PAGE4`
 
 ## Frontend Config JSON
 
@@ -58,8 +58,15 @@
 
 ## Режимы
 
-- `offline_demo=1`: UI работает локально через `navigation.*`, backend не обязателен.
-- `offline_demo=0`: frontend работает как screen-client через transport из конфига.
+- `offline_demo=0` (`online`):
+  - frontend поднимает UI и инициализирует `ScreenClient + EezLvglAdapter`
+  - показывает только стартовый экран (`start_page` из config или fallback `LOAD`)
+  - отправляет `hello/device_info` и дальше ждет команды backend
+  - локальной demo-навигации в этом режиме нет
+- `offline_demo=1` (`offline_demo`):
+  - используется тот же UI и тот же generated meta-layer
+  - работает локальный `OfflineDemoController`
+  - backend/transport не обязателен
 
 ## Сборка
 
@@ -139,3 +146,5 @@ Notes:
 - PlatformIO build runs this generator automatically via `extra_script.py`.
 - Generated files are deterministic/reproducible and should stay in sync with current EEZ UI output.
 - Shared ids/descriptors headers can be reused by frontend and backend; frontend-only object map/page meta stay in generated `.cpp` integration layer.
+- Generated ids/descriptors/object-map are the single source of truth for page/element metadata.
+- `shared_app` stays a thin bootstrap layer (UI init + config load + runtime init/tick only).

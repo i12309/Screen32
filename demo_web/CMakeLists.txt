@@ -58,9 +58,9 @@ set(APP_SOURCES
     ${COMMON_APP_DIR}/app_core.cpp
     ${COMMON_APP_DIR}/frontend_config.cpp
     ${COMMON_APP_DIR}/frontend_runtime.cpp
+    ${COMMON_APP_DIR}/offline_demo_controller.cpp
     ${GENERATED_META_DIR}/ui_object_map.generated.cpp
     ${GENERATED_META_DIR}/eez_page_meta.generated.cpp
-    ${COMMON_APP_DIR}/navigation.cpp
     ${COMMON_APP_DIR}/shared_app.cpp
     ${WEB_PLATFORM_DIR}/platform.cpp
     ${WEB_PLATFORM_DIR}/web_main.cpp

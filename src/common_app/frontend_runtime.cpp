@@ -8,6 +8,7 @@
 
 #include "common_app/app_core.h"
 #include "common_app/generated/ui_object_map.generated.h"
+#include "common_app/offline_demo_controller.h"
 #include "common_app/frontend_platform.h"
 #include "lvgl_eez/EezLvglAdapter.h"
 #include "lvgl_eez/UiObjectMap.h"
@@ -58,6 +59,7 @@ struct RuntimeState {
     screenlib::adapter::UiPageBinding pageBindings[kMaxPageBindings] = {};
     screenlib::adapter::UiObjectMap objectMap;
     screenlib::adapter::EezLvglAdapter adapter;
+    OfflineDemoController offlineController;
 
     Screen32BoundElement tracked[kMaxTrackedElements] = {};
     size_t trackedCount = 0;
@@ -71,6 +73,17 @@ RuntimeState g_state;
 
 uint32_t current_page_id() {
     return screen32_current_page_id();
+}
+
+bool is_valid_page_id(uint32_t pageId) {
+    return screen32_find_page_descriptor(pageId) != nullptr;
+}
+
+uint32_t resolve_start_page(uint32_t requestedPage, bool onlineMode) {
+    if (is_valid_page_id(requestedPage)) {
+        return requestedPage;
+    }
+    return onlineMode ? SCREEN32_PAGE_ID_LOAD : SCREEN32_PAGE_ID_MAIN_MENU;
 }
 
 void copy_text_safe(char* dst, size_t dstSize, const char* src) {
@@ -286,8 +299,32 @@ void attach_generated_ui_event_handlers() {
     }
 }
 
+void configure_offline_demo_controller() {
+    g_state.offlineController.init(&g_state.adapter);
+
+    const uint32_t pageOrder[] = {
+        SCREEN32_PAGE_ID_MAIN_MENU,
+        SCREEN32_PAGE_ID_DEF_PAGE1,
+        SCREEN32_PAGE_ID_DEF_PAGE2,
+        SCREEN32_PAGE_ID_DEF_PAGE3,
+        SCREEN32_PAGE_ID_DEF_PAGE4,
+    };
+    g_state.offlineController.setPageOrder(pageOrder, sizeof(pageOrder) / sizeof(pageOrder[0]));
+
+    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_B_MAIN_TASK, SCREEN32_PAGE_ID_DEF_PAGE1);
+    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_2, SCREEN32_PAGE_ID_DEF_PAGE2);
+    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_5, SCREEN32_PAGE_ID_DEF_PAGE3);
+    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_9, SCREEN32_PAGE_ID_DEF_PAGE4);
+    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_12, SCREEN32_PAGE_ID_MAIN_MENU);
+
+    g_state.offlineController.bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK);
+    g_state.offlineController.bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_1);
+    g_state.offlineController.bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_3);
+    g_state.offlineController.bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_4);
+}
+
 void on_ui_event_cb(lv_event_t* e) {
-    if (e == nullptr || g_state.client == nullptr) {
+    if (e == nullptr || !g_state.initialized) {
         return;
     }
 
@@ -304,11 +341,16 @@ void on_ui_event_cb(lv_event_t* e) {
     lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
 
     if (code == LV_EVENT_CLICKED && descriptor->emits_button_event) {
+        if (g_state.offlineDemo) {
+            g_state.offlineController.onButtonEvent(elementId, pageId);
+            return;
+        }
+
         g_state.adapter.emitButtonEvent(elementId, pageId);
         return;
     }
 
-    if (code != LV_EVENT_VALUE_CHANGED || target == nullptr || !descriptor->emits_input_event) {
+    if (code != LV_EVENT_VALUE_CHANGED || target == nullptr || !descriptor->emits_input_event || g_state.offlineDemo) {
         return;
     }
 
@@ -474,6 +516,8 @@ bool frontend_runtime_init(const FrontendConfig& config) {
     }
     attach_generated_ui_event_handlers();
 
+    const uint32_t configuredStartPage = config.startPage;
+
     if (!g_state.offlineDemo) {
         g_state.transport = platform_create_transport(config);
         if (!g_state.transport) {
@@ -482,14 +526,22 @@ bool frontend_runtime_init(const FrontendConfig& config) {
         }
     }
 
-    ITransport* transport = g_state.transport ? g_state.transport.get() : static_cast<ITransport*>(&g_state.nullTransport);
-    g_state.client.reset(new screenlib::client::ScreenClient(*transport));
-    g_state.client->setUiAdapter(&g_state.adapter);
-    g_state.client->setEventHandler(&on_client_event, &g_state);
-    g_state.client->init();
-
     if (g_state.online) {
+        ITransport* transport = g_state.transport ? g_state.transport.get() : static_cast<ITransport*>(&g_state.nullTransport);
+        g_state.client.reset(new screenlib::client::ScreenClient(*transport));
+        g_state.client->setUiAdapter(&g_state.adapter);
+        g_state.client->setEventHandler(&on_client_event, &g_state);
+        g_state.client->init();
+
+        g_state.adapter.showPage(resolve_start_page(configuredStartPage, true));
         g_state.client->sendHello(make_device_info());
+    } else {
+        g_state.client.reset();
+        configure_offline_demo_controller();
+        const uint32_t offlineStartPage = resolve_start_page(configuredStartPage, false);
+        if (!g_state.offlineController.start(offlineStartPage)) {
+            g_state.adapter.showPage(resolve_start_page(0, false));
+        }
     }
 
     g_state.initialized = true;
@@ -497,15 +549,11 @@ bool frontend_runtime_init(const FrontendConfig& config) {
 }
 
 void frontend_runtime_tick() {
-    if (!g_state.initialized || g_state.client == nullptr) {
+    if (!g_state.initialized || !g_state.online || g_state.client == nullptr) {
         return;
     }
 
     g_state.client->tick();
-
-    if (!g_state.online) {
-        return;
-    }
 
     const uint32_t now = platform_tick_ms();
     if (now - g_state.lastHeartbeatMs >= kHeartbeatPeriodMs) {
