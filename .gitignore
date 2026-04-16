@@ -36,4 +36,3 @@ lib/lvgl/zephyr/
 .DS_Store
 Thumbs.db
 
-src/ui/

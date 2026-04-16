@@ -37,6 +37,14 @@ set(CONFIG_LV_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
 # Подключаем LVGL как полноценную библиотеку CMake.
 add_subdirectory(${LVGL_DIR} ${CMAKE_BINARY_DIR}/lvgl_build)
 
+# Для Emscripten SDL2 headers/libs должны быть доступны уже на этапе
+# компиляции самой цели lvgl (а не только при линковке итогового demo_web).
+if(EMSCRIPTEN AND TARGET lvgl)
+    target_compile_options(lvgl PRIVATE
+        -sUSE_SDL=2
+    )
+endif()
+
 include(FetchContent)
 FetchContent_Declare(
     nanopb

@@ -38,7 +38,8 @@ public:
         uint32_t reconnectIntervalMs = 2000;
     };
 
-    explicit EmscriptenWsClientTransport(const Config& cfg = Config{}) : _cfg(cfg) {}
+    EmscriptenWsClientTransport() = default;
+    explicit EmscriptenWsClientTransport(const Config& cfg) : _cfg(cfg) {}
 
     bool begin(const char* url) {
         if (url == nullptr || url[0] == '\0') {
@@ -58,7 +59,10 @@ public:
         if (!_connected || _socket <= 0 || data == nullptr || len == 0) {
             return false;
         }
-        return emscripten_websocket_send_binary(_socket, data, len) == EMSCRIPTEN_RESULT_SUCCESS;
+        return emscripten_websocket_send_binary(
+                   _socket,
+                   const_cast<void*>(static_cast<const void*>(data)),
+                   static_cast<uint32_t>(len)) == EMSCRIPTEN_RESULT_SUCCESS;
     }
 
     size_t read(uint8_t* dst, size_t max_len) override {
