@@ -18,9 +18,12 @@ public:
     bool bindButtonToNext(uint32_t elementId);
     bool bindButtonToPrev(uint32_t elementId);
     bool bindButtonToGoto(uint32_t elementId, uint32_t targetPageId);
+    bool configureDefaultDemo();
 
     bool start(uint32_t startPageId);
     bool onButtonEvent(uint32_t elementId, uint32_t sourcePageId);
+    bool onInputEventInt(uint32_t elementId, uint32_t sourcePageId, int32_t value);
+    bool onInputEventText(uint32_t elementId, uint32_t sourcePageId, const char* value);
 
     uint32_t currentPage() const;
 
@@ -55,4 +58,3 @@ private:
 };
 
 } // namespace demo
-

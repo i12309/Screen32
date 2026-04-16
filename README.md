@@ -125,18 +125,30 @@ Note for web target: no separate desktop SDL2 installation is needed.
 
 ## UI Meta Generation
 
-Screen client meta-layer is generated from EEZ/LVGL generated UI sources (`src/ui/screens.h`, `src/ui/screens.c`):
+UI meta generator is a build-time tool (not a runtime library).
+It generates meta-layer from EEZ/LVGL sources (`src/ui/screens.h`, `src/ui/screens.c`).
+
+Tool entrypoint:
+
+```powershell
+python tools/ui_meta_gen/generate_ui_meta.py
+```
+
+Compatibility wrapper (legacy command, same result):
 
 ```powershell
 python scripts/generate_ui_meta.py
 ```
 
-Generated files:
+Shared generated artifacts (frontend + backend can reuse):
 
 - `src/common_app/generated/page_ids.generated.h`
 - `src/common_app/generated/element_ids.generated.h`
 - `src/common_app/generated/page_descriptors.generated.h`
 - `src/common_app/generated/element_descriptors.generated.h`
+
+Frontend-only generated artifacts:
+
 - `src/common_app/generated/ui_object_map.generated.h`
 - `src/common_app/generated/ui_object_map.generated.cpp`
 - `src/common_app/generated/eez_page_meta.generated.cpp`
@@ -145,6 +157,5 @@ Notes:
 
 - PlatformIO build runs this generator automatically via `extra_script.py`.
 - Generated files are deterministic/reproducible and should stay in sync with current EEZ UI output.
-- Shared ids/descriptors headers can be reused by frontend and backend; frontend-only object map/page meta stay in generated `.cpp` integration layer.
 - Generated ids/descriptors/object-map are the single source of truth for page/element metadata.
 - `shared_app` stays a thin bootstrap layer (UI init + config load + runtime init/tick only).

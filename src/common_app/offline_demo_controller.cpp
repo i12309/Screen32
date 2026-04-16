@@ -1,7 +1,9 @@
 #include "common_app/offline_demo_controller.h"
 
 #include "common_app/generated/element_descriptors.generated.h"
+#include "common_app/generated/element_ids.generated.h"
 #include "common_app/generated/page_descriptors.generated.h"
+#include "common_app/generated/page_ids.generated.h"
 
 namespace demo {
 
@@ -66,6 +68,33 @@ bool OfflineDemoController::bindButtonToGoto(uint32_t elementId, uint32_t target
     return setBinding(elementId, BindingActionType::Goto, targetPageId);
 }
 
+bool OfflineDemoController::configureDefaultDemo() {
+    const uint32_t pageOrder[] = {
+        SCREEN32_PAGE_ID_MAIN_MENU,
+        SCREEN32_PAGE_ID_DEF_PAGE1,
+        SCREEN32_PAGE_ID_DEF_PAGE2,
+        SCREEN32_PAGE_ID_DEF_PAGE3,
+        SCREEN32_PAGE_ID_DEF_PAGE4,
+    };
+    if (!setPageOrder(pageOrder, sizeof(pageOrder) / sizeof(pageOrder[0]))) {
+        return false;
+    }
+
+    bool ok = true;
+    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_B_MAIN_TASK, SCREEN32_PAGE_ID_DEF_PAGE1) && ok;
+    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_2, SCREEN32_PAGE_ID_DEF_PAGE2) && ok;
+    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_5, SCREEN32_PAGE_ID_DEF_PAGE3) && ok;
+    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_9, SCREEN32_PAGE_ID_DEF_PAGE4) && ok;
+    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_12, SCREEN32_PAGE_ID_MAIN_MENU) && ok;
+
+    ok = bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK) && ok;
+    ok = bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_1) && ok;
+    ok = bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_3) && ok;
+    ok = bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_4) && ok;
+
+    return ok;
+}
+
 bool OfflineDemoController::start(uint32_t startPageId) {
     uint32_t resolvedPageId = 0;
     if (!pickStartPage(startPageId, resolvedPageId)) {
@@ -101,6 +130,16 @@ bool OfflineDemoController::onButtonEvent(uint32_t elementId, uint32_t sourcePag
 
     const size_t prevIndex = (static_cast<size_t>(currentIndex) + _pageOrderCount - 1) % _pageOrderCount;
     return showPage(_pageOrder[prevIndex]);
+}
+
+bool OfflineDemoController::onInputEventInt(uint32_t elementId, uint32_t sourcePageId, int32_t value) {
+    (void)value;
+    return onButtonEvent(elementId, sourcePageId);
+}
+
+bool OfflineDemoController::onInputEventText(uint32_t elementId, uint32_t sourcePageId, const char* value) {
+    (void)value;
+    return onButtonEvent(elementId, sourcePageId);
 }
 
 uint32_t OfflineDemoController::currentPage() const {
@@ -175,4 +214,3 @@ bool OfflineDemoController::pickStartPage(uint32_t requestedPageId, uint32_t& ou
 }
 
 } // namespace demo
-

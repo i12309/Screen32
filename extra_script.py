@@ -12,7 +12,9 @@ import sys
 
 def run_ui_meta_generator():
     project_dir = env.subst("$PROJECT_DIR")
-    generator_script = os.path.join(project_dir, "scripts", "generate_ui_meta.py")
+    generator_script = os.path.join(project_dir, "tools", "ui_meta_gen", "generate_ui_meta.py")
+    if not os.path.isfile(generator_script):
+        generator_script = os.path.join(project_dir, "scripts", "generate_ui_meta.py")
     if not os.path.isfile(generator_script):
         print("\n[ERROR] UI meta generator script not found:")
         print(f"        {generator_script}")

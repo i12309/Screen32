@@ -299,30 +299,6 @@ void attach_generated_ui_event_handlers() {
     }
 }
 
-void configure_offline_demo_controller() {
-    g_state.offlineController.init(&g_state.adapter);
-
-    const uint32_t pageOrder[] = {
-        SCREEN32_PAGE_ID_MAIN_MENU,
-        SCREEN32_PAGE_ID_DEF_PAGE1,
-        SCREEN32_PAGE_ID_DEF_PAGE2,
-        SCREEN32_PAGE_ID_DEF_PAGE3,
-        SCREEN32_PAGE_ID_DEF_PAGE4,
-    };
-    g_state.offlineController.setPageOrder(pageOrder, sizeof(pageOrder) / sizeof(pageOrder[0]));
-
-    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_B_MAIN_TASK, SCREEN32_PAGE_ID_DEF_PAGE1);
-    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_2, SCREEN32_PAGE_ID_DEF_PAGE2);
-    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_5, SCREEN32_PAGE_ID_DEF_PAGE3);
-    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_9, SCREEN32_PAGE_ID_DEF_PAGE4);
-    g_state.offlineController.bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_12, SCREEN32_PAGE_ID_MAIN_MENU);
-
-    g_state.offlineController.bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK);
-    g_state.offlineController.bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_1);
-    g_state.offlineController.bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_3);
-    g_state.offlineController.bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_4);
-}
-
 void on_ui_event_cb(lv_event_t* e) {
     if (e == nullptr || !g_state.initialized) {
         return;
@@ -350,7 +326,21 @@ void on_ui_event_cb(lv_event_t* e) {
         return;
     }
 
-    if (code != LV_EVENT_VALUE_CHANGED || target == nullptr || !descriptor->emits_input_event || g_state.offlineDemo) {
+    if (code != LV_EVENT_VALUE_CHANGED || target == nullptr || !descriptor->emits_input_event) {
+        return;
+    }
+
+    if (g_state.offlineDemo) {
+#if LV_USE_TEXTAREA
+        if (lv_obj_check_type(target, &lv_textarea_class)) {
+            g_state.offlineController.onInputEventText(elementId, pageId, lv_textarea_get_text(target));
+            return;
+        }
+#endif
+        int32_t numericValue = 0;
+        if (read_element_int_value(target, numericValue)) {
+            g_state.offlineController.onInputEventInt(elementId, pageId, numericValue);
+        }
         return;
     }
 
@@ -537,9 +527,10 @@ bool frontend_runtime_init(const FrontendConfig& config) {
         g_state.client->sendHello(make_device_info());
     } else {
         g_state.client.reset();
-        configure_offline_demo_controller();
+        g_state.offlineController.init(&g_state.adapter);
+        const bool demoConfigured = g_state.offlineController.configureDefaultDemo();
         const uint32_t offlineStartPage = resolve_start_page(configuredStartPage, false);
-        if (!g_state.offlineController.start(offlineStartPage)) {
+        if (!demoConfigured || !g_state.offlineController.start(offlineStartPage)) {
             g_state.adapter.showPage(resolve_start_page(0, false));
         }
     }
