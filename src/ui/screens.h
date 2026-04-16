@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-// Screens
+// Экраны
 
 enum ScreensEnum {
     _SCREEN_ID_FIRST = 1,

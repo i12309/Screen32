@@ -2,22 +2,19 @@
 
 #include <memory>
 #include <stdio.h>
-#include <string.h>
 
 #include <lvgl.h>
 
 #include "common_app/app_core.h"
+#include "common_app/frontend_platform.h"
+#include "common_app/frontend_service_responder.h"
+#include "common_app/frontend_ui_events.h"
+#include "common_app/generated/page_descriptors.generated.h"
 #include "common_app/generated/ui_object_map.generated.h"
 #include "common_app/offline_demo_controller.h"
-#include "common_app/frontend_platform.h"
 #include "lvgl_eez/EezLvglAdapter.h"
 #include "lvgl_eez/UiObjectMap.h"
 #include "runtime/ScreenClient.h"
-
-extern "C" {
-#include "ui/screens.h"
-#include "ui/ui.h"
-}
 
 namespace demo {
 
@@ -44,6 +41,8 @@ public:
     void tick() override {}
 };
 
+// RuntimeState принадлежит слою оркестрации frontend_runtime и связывает
+// все части, зависящие от режима (transport/client/adapter/offline-контроллер).
 struct RuntimeState {
     FrontendConfig config = frontend_default_config();
     bool initialized = false;
@@ -71,31 +70,29 @@ struct RuntimeState {
 
 RuntimeState g_state;
 
-uint32_t current_page_id() {
-    return screen32_current_page_id();
-}
-
 bool is_valid_page_id(uint32_t pageId) {
     return screen32_find_page_descriptor(pageId) != nullptr;
 }
 
-uint32_t resolve_start_page(uint32_t requestedPage, bool onlineMode) {
+uint32_t resolve_start_page(uint32_t requestedPage, uint32_t fallbackPage) {
     if (is_valid_page_id(requestedPage)) {
         return requestedPage;
     }
-    return onlineMode ? SCREEN32_PAGE_ID_LOAD : SCREEN32_PAGE_ID_MAIN_MENU;
+    if (is_valid_page_id(fallbackPage)) {
+        return fallbackPage;
+    }
+    return SCREEN32_PAGE_ID_LOAD;
 }
 
-void copy_text_safe(char* dst, size_t dstSize, const char* src) {
-    if (dst == nullptr || dstSize == 0) return;
-    dst[0] = '\0';
-    if (src == nullptr) return;
-    strncpy(dst, src, dstSize - 1);
-    dst[dstSize - 1] = '\0';
+uint32_t resolve_online_start_page(const FrontendConfig& config) {
+    return resolve_start_page(config.firstOnlinePage, SCREEN32_PAGE_ID_LOAD);
+}
+
+uint32_t resolve_offline_start_page(const FrontendConfig& config) {
+    return resolve_start_page(config.firstOfflinePage, SCREEN32_PAGE_ID_MAIN_MENU);
 }
 
 uint32_t normalize_color(uint32_t value) {
-    // Accept both rgb565 and 24-bit RGB inputs.
     if (value <= 0xFFFF) {
         const uint8_t r = static_cast<uint8_t>(((value >> 11) & 0x1F) * 255 / 31);
         const uint8_t g = static_cast<uint8_t>(((value >> 5) & 0x3F) * 255 / 63);
@@ -129,55 +126,6 @@ bool get_label_for_object(lv_obj_t* obj, lv_obj_t*& outLabel) {
         }
 #endif
     }
-
-    return false;
-}
-
-bool read_element_text(lv_obj_t* obj, char* outText, size_t outSize) {
-    if (obj == nullptr || outText == nullptr || outSize == 0) {
-        return false;
-    }
-
-    lv_obj_t* label = nullptr;
-    if (!get_label_for_object(obj, label)) {
-        return false;
-    }
-
-#if LV_USE_LABEL
-    const char* text = lv_label_get_text(label);
-    copy_text_safe(outText, outSize, text);
-    return true;
-#else
-    (void)label;
-    return false;
-#endif
-}
-
-bool read_element_int_value(lv_obj_t* obj, int32_t& outValue) {
-    if (obj == nullptr || !lv_obj_is_valid(obj)) {
-        return false;
-    }
-
-#if LV_USE_SLIDER
-    if (lv_obj_check_type(obj, &lv_slider_class)) {
-        outValue = lv_slider_get_value(obj);
-        return true;
-    }
-#endif
-
-#if LV_USE_BAR
-    if (lv_obj_check_type(obj, &lv_bar_class)) {
-        outValue = lv_bar_get_value(obj);
-        return true;
-    }
-#endif
-
-#if LV_USE_ARC
-    if (lv_obj_check_type(obj, &lv_arc_class)) {
-        outValue = lv_arc_get_value(obj);
-        return true;
-    }
-#endif
 
     return false;
 }
@@ -268,146 +216,46 @@ bool hook_set_color(void* userData, void* uiObject, uint32_t bgColor, uint32_t f
     return true;
 }
 
-const Screen32BoundElement* find_tracked_element_by_id(uint32_t elementId) {
-    return screen32_find_bound_element(g_state.tracked, g_state.trackedCount, elementId);
+void on_ui_button_event(void* userData, uint32_t elementId, uint32_t pageId) {
+    RuntimeState* state = static_cast<RuntimeState*>(userData);
+    if (state == nullptr || !state->initialized) {
+        return;
+    }
+
+    if (state->offlineDemo) {
+        state->offlineController.onButtonEvent(elementId, pageId);
+        return;
+    }
+
+    state->adapter.emitButtonEvent(elementId, pageId);
 }
 
-void on_ui_event_cb(lv_event_t* e);
-
-void attach_generated_ui_event_handlers() {
-    for (size_t i = 0; i < g_state.trackedCount; ++i) {
-        const Screen32BoundElement& tracked = g_state.tracked[i];
-        if (tracked.obj == nullptr || tracked.descriptor == nullptr) {
-            continue;
-        }
-
-        if (tracked.descriptor->emits_button_event) {
-            lv_obj_add_event_cb(
-                tracked.obj,
-                on_ui_event_cb,
-                LV_EVENT_CLICKED,
-                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
-        }
-
-        if (tracked.descriptor->emits_input_event) {
-            lv_obj_add_event_cb(
-                tracked.obj,
-                on_ui_event_cb,
-                LV_EVENT_VALUE_CHANGED,
-                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
-        }
+void on_ui_input_event_int(void* userData, uint32_t elementId, uint32_t pageId, int32_t value) {
+    RuntimeState* state = static_cast<RuntimeState*>(userData);
+    if (state == nullptr || !state->initialized) {
+        return;
     }
+
+    if (state->offlineDemo) {
+        state->offlineController.onInputEventInt(elementId, pageId, value);
+        return;
+    }
+
+    state->adapter.emitInputEventInt(elementId, pageId, value);
 }
 
-void on_ui_event_cb(lv_event_t* e) {
-    if (e == nullptr || !g_state.initialized) {
+void on_ui_input_event_text(void* userData, uint32_t elementId, uint32_t pageId, const char* value) {
+    RuntimeState* state = static_cast<RuntimeState*>(userData);
+    if (state == nullptr || !state->initialized) {
         return;
     }
 
-    const uint32_t elementId = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(e)));
-    const Screen32BoundElement* tracked = find_tracked_element_by_id(elementId);
-    const Screen32ElementDescriptor* descriptor =
-        (tracked != nullptr) ? tracked->descriptor : screen32_find_element_descriptor(elementId);
-    if (descriptor == nullptr) {
+    if (state->offlineDemo) {
+        state->offlineController.onInputEventText(elementId, pageId, value);
         return;
     }
 
-    const uint32_t pageId = current_page_id();
-    const lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
-
-    if (code == LV_EVENT_CLICKED && descriptor->emits_button_event) {
-        if (g_state.offlineDemo) {
-            g_state.offlineController.onButtonEvent(elementId, pageId);
-            return;
-        }
-
-        g_state.adapter.emitButtonEvent(elementId, pageId);
-        return;
-    }
-
-    if (code != LV_EVENT_VALUE_CHANGED || target == nullptr || !descriptor->emits_input_event) {
-        return;
-    }
-
-    if (g_state.offlineDemo) {
-#if LV_USE_TEXTAREA
-        if (lv_obj_check_type(target, &lv_textarea_class)) {
-            g_state.offlineController.onInputEventText(elementId, pageId, lv_textarea_get_text(target));
-            return;
-        }
-#endif
-        int32_t numericValue = 0;
-        if (read_element_int_value(target, numericValue)) {
-            g_state.offlineController.onInputEventInt(elementId, pageId, numericValue);
-        }
-        return;
-    }
-
-#if LV_USE_TEXTAREA
-    if (lv_obj_check_type(target, &lv_textarea_class)) {
-        g_state.adapter.emitInputEventString(elementId, pageId, lv_textarea_get_text(target));
-        return;
-    }
-#endif
-
-    int32_t numericValue = 0;
-    if (read_element_int_value(target, numericValue)) {
-        g_state.adapter.emitInputEventInt(elementId, pageId, numericValue);
-    }
-}
-
-DeviceInfo make_device_info() {
-    DeviceInfo info = DeviceInfo_init_zero;
-    info.protocol_version = 1;
-    copy_text_safe(info.fw_version, sizeof(info.fw_version), "screen32-frontend");
-    copy_text_safe(info.ui_version, sizeof(info.ui_version), "eez-lvgl");
-    copy_text_safe(info.screen_type, sizeof(info.screen_type), "screen32");
-    copy_text_safe(info.client_type, sizeof(info.client_type), frontend_mode_name(g_state.config.mode));
-    copy_text_safe(info.device_id, sizeof(info.device_id), "screen32-demo");
-    copy_text_safe(info.instance_id, sizeof(info.instance_id), "default");
-    info.capabilities = 0;
-    return info;
-}
-
-bool fill_page_element_state(const Screen32BoundElement& tracked, PageElementState& outState) {
-    if (tracked.obj == nullptr || !lv_obj_is_valid(tracked.obj)) {
-        return false;
-    }
-
-    PageElementState zeroState = PageElementState_init_zero;
-    outState = zeroState;
-    outState.element_id = tracked.elementId;
-    const Screen32ElementDescriptor* descriptor =
-        tracked.descriptor != nullptr ? tracked.descriptor : screen32_find_element_descriptor(tracked.elementId);
-    if (descriptor == nullptr) {
-        return false;
-    }
-
-    char text[65] = {};
-    if (descriptor->supports_text && read_element_text(tracked.obj, text, sizeof(text))) {
-        outState.type = ElementStateType_ELEMENT_STATE_TEXT;
-        outState.which_value = PageElementState_text_value_tag;
-        copy_text_safe(outState.value.text_value, sizeof(outState.value.text_value), text);
-        return true;
-    }
-
-    int32_t value = 0;
-    if (descriptor->supports_value && read_element_int_value(tracked.obj, value)) {
-        outState.type = ElementStateType_ELEMENT_STATE_INT;
-        outState.which_value = PageElementState_int_value_tag;
-        outState.value.int_value = value;
-        return true;
-    }
-
-    if (!descriptor->supports_visible) {
-        return false;
-    }
-
-    outState.type = ElementStateType_ELEMENT_STATE_VISIBLE;
-    outState.which_value = PageElementState_visible_tag;
-    outState.value.visible = !lv_obj_has_flag(tracked.obj, LV_OBJ_FLAG_HIDDEN);
-    return true;
+    state->adapter.emitInputEventString(elementId, pageId, value != nullptr ? value : "");
 }
 
 void on_client_event(const Envelope& env, screenlib::client::ScreenClient::EventDirection direction, void* userData) {
@@ -415,64 +263,16 @@ void on_client_event(const Envelope& env, screenlib::client::ScreenClient::Event
     if (state == nullptr || state->client == nullptr) {
         return;
     }
-
     if (direction != screenlib::client::ScreenClient::EventDirection::Incoming) {
         return;
     }
 
-    switch (env.which_payload) {
-        case Envelope_request_device_info_tag: {
-            // В текущем API ScreenClient нет отдельного sendDeviceInfo(),
-            // поэтому используем hello как metadata-response экрана.
-            state->client->sendHello(make_device_info());
-            break;
-        }
-        case Envelope_request_current_page_tag: {
-            const uint32_t requestId = env.payload.request_current_page.request_id;
-            state->client->sendCurrentPage(current_page_id(), requestId);
-            break;
-        }
-        case Envelope_request_page_state_tag: {
-            PageState pageState = PageState_init_zero;
-            pageState.request_id = env.payload.request_page_state.request_id;
-            const uint32_t requestedPage = env.payload.request_page_state.page_id;
-            pageState.page_id = (requestedPage == 0) ? current_page_id() : requestedPage;
-            pageState.elements_count = 0;
-
-            for (size_t i = 0; i < state->trackedCount && pageState.elements_count < 8; ++i) {
-                if (state->tracked[i].pageId != pageState.page_id) {
-                    continue;
-                }
-                if (fill_page_element_state(state->tracked[i], pageState.elements[pageState.elements_count])) {
-                    pageState.elements_count++;
-                }
-            }
-            state->client->sendPageState(pageState);
-            break;
-        }
-        case Envelope_request_element_state_tag: {
-            ElementState elementState = ElementState_init_zero;
-            elementState.request_id = env.payload.request_element_state.request_id;
-            elementState.page_id = env.payload.request_element_state.page_id;
-            if (elementState.page_id == 0) {
-                elementState.page_id = current_page_id();
-            }
-
-            const Screen32BoundElement* tracked = find_tracked_element_by_id(env.payload.request_element_state.element_id);
-            if (tracked != nullptr && (tracked->pageId == elementState.page_id)) {
-                elementState.found = fill_page_element_state(*tracked, elementState.element);
-                elementState.has_element = elementState.found;
-            } else {
-                elementState.found = false;
-                elementState.has_element = false;
-            }
-
-            state->client->sendElementState(elementState);
-            break;
-        }
-        default:
-            break;
-    }
+    FrontendServiceResponderContext responder{};
+    responder.client = state->client.get();
+    responder.trackedElements = state->tracked;
+    responder.trackedCount = state->trackedCount;
+    responder.mode = state->config.mode;
+    frontend_handle_service_request(env, responder);
 }
 
 } // namespace
@@ -504,9 +304,13 @@ bool frontend_runtime_init(const FrontendConfig& config) {
     if (!mapBound) {
         printf("[frontend_runtime] warning: generated UI map has unbound entries\n");
     }
-    attach_generated_ui_event_handlers();
 
-    const uint32_t configuredStartPage = config.startPage;
+    FrontendUiEventSink sink{};
+    sink.userData = &g_state;
+    sink.onButtonEvent = &on_ui_button_event;
+    sink.onInputEventInt = &on_ui_input_event_int;
+    sink.onInputEventText = &on_ui_input_event_text;
+    frontend_ui_events_attach_generated(g_state.tracked, g_state.trackedCount, sink);
 
     if (!g_state.offlineDemo) {
         g_state.transport = platform_create_transport(config);
@@ -523,15 +327,14 @@ bool frontend_runtime_init(const FrontendConfig& config) {
         g_state.client->setEventHandler(&on_client_event, &g_state);
         g_state.client->init();
 
-        g_state.adapter.showPage(resolve_start_page(configuredStartPage, true));
-        g_state.client->sendHello(make_device_info());
+        g_state.adapter.showPage(resolve_online_start_page(config));
+        g_state.client->sendHello(frontend_build_device_info(g_state.config.mode));
     } else {
         g_state.client.reset();
         g_state.offlineController.init(&g_state.adapter);
-        const bool demoConfigured = g_state.offlineController.configureDefaultDemo();
-        const uint32_t offlineStartPage = resolve_start_page(configuredStartPage, false);
-        if (!demoConfigured || !g_state.offlineController.start(offlineStartPage)) {
-            g_state.adapter.showPage(resolve_start_page(0, false));
+        const bool started = g_state.offlineController.start(resolve_offline_start_page(config));
+        if (!started) {
+            g_state.adapter.showPage(resolve_offline_start_page(frontend_default_config()));
         }
     }
 

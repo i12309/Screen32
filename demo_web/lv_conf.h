@@ -1,7 +1,7 @@
 #ifndef LV_CONF_H
 #define LV_CONF_H
 
-/* clang-format off */
+/* clang-format отключен */
 /* Файл demo_web/lv_conf.h
  * Назначение: конфигурация LVGL для web-сборки (Emscripten/SDL). */
 

@@ -1,6 +1,6 @@
-// AUTO-GENERATED FILE.
-// Source: src/ui/screens.h + src/ui/screens.c
-// DO NOT EDIT MANUALLY. Run: python tools/ui_meta_gen/generate_ui_meta.py
+// АВТОСГЕНЕРИРОВАННЫЙ ФАЙЛ.
+// Источник: src/ui/screens.h + src/ui/screens.c
+// НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ. Запуск: python tools/ui_meta_gen/generate_ui_meta.py
 
 #include "common_app/generated/ui_object_map.generated.h"
 
@@ -48,7 +48,7 @@ bool screen32_bind_generated_ui_map(screenlib::adapter::UiObjectMap& objectMap,
     size_t boundCount = 0;
     bool allOk = true;
 
-    // Page map
+    // Карта страниц
     allOk = bind_page(objectMap, 1u, objects.load) && allOk;
     allOk = bind_page(objectMap, 2u, objects.main_menu) && allOk;
     allOk = bind_page(objectMap, 3u, objects.def_page1) && allOk;
@@ -56,7 +56,7 @@ bool screen32_bind_generated_ui_map(screenlib::adapter::UiObjectMap& objectMap,
     allOk = bind_page(objectMap, 5u, objects.def_page3) && allOk;
     allOk = bind_page(objectMap, 6u, objects.def_page4) && allOk;
 
-    // Element map
+    // Карта элементов
 
     allOk = bind_element(objectMap, 702393654u, 1u, objects.obj0, outElements, outCapacity, boundCount) && allOk;
     allOk = bind_element(objectMap, 831058084u, 1u, objects.obj1, outElements, outCapacity, boundCount) && allOk;

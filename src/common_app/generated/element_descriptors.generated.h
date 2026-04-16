@@ -1,6 +1,6 @@
-// AUTO-GENERATED FILE.
-// Source: src/ui/screens.h + src/ui/screens.c
-// DO NOT EDIT MANUALLY. Run: python tools/ui_meta_gen/generate_ui_meta.py
+// АВТОСГЕНЕРИРОВАННЫЙ ФАЙЛ.
+// Источник: src/ui/screens.h + src/ui/screens.c
+// НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ. Запуск: python tools/ui_meta_gen/generate_ui_meta.py
 
 #pragma once
 

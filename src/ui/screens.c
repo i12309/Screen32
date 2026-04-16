@@ -13,13 +13,13 @@
 objects_t objects;
 
 //
-// Event handlers
+// Обработчики событий
 //
 
 lv_obj_t *tick_value_change_obj;
 
 //
-// Screens
+// Экраны
 //
 
 void create_screen_load() {
@@ -297,7 +297,7 @@ void create_screen_main_menu() {
     {
         lv_obj_t *parent_obj = obj;
         {
-            // cMainMenu
+            // Элемент: cMainMenu
             lv_obj_t *obj = lv_obj_create(parent_obj);
             objects.c_main_menu = obj;
             lv_obj_set_pos(obj, 0, 0);
@@ -323,7 +323,7 @@ void create_screen_main_menu() {
             {
                 lv_obj_t *parent_obj = obj;
                 {
-                    // bMainTask
+                    // Элемент: bMainTask
                     lv_obj_t *obj = lv_button_create(parent_obj);
                     objects.b_main_task = obj;
                     lv_obj_set_pos(obj, 1, 1);
@@ -345,7 +345,7 @@ void create_screen_main_menu() {
                     }
                 }
                 {
-                    // bMainProfile
+                    // Элемент: bMainProfile
                     lv_obj_t *obj = lv_button_create(parent_obj);
                     objects.b_main_profile = obj;
                     lv_obj_set_pos(obj, 267, 1);
@@ -368,7 +368,7 @@ void create_screen_main_menu() {
                     }
                 }
                 {
-                    // bMainNet
+                    // Элемент: bMainNet
                     lv_obj_t *obj = lv_button_create(parent_obj);
                     objects.b_main_net = obj;
                     lv_obj_set_pos(obj, 534, 1);
@@ -391,7 +391,7 @@ void create_screen_main_menu() {
                     }
                 }
                 {
-                    // bMainService
+                    // Элемент: bMainService
                     lv_obj_t *obj = lv_button_create(parent_obj);
                     objects.b_main_service = obj;
                     lv_obj_set_pos(obj, 1, 240);
@@ -414,7 +414,7 @@ void create_screen_main_menu() {
                     }
                 }
                 {
-                    // bMainStats
+                    // Элемент: bMainStats
                     lv_obj_t *obj = lv_button_create(parent_obj);
                     objects.b_main_stats = obj;
                     lv_obj_set_pos(obj, 267, 240);
@@ -438,7 +438,7 @@ void create_screen_main_menu() {
                     }
                 }
                 {
-                    // bMainSupport
+                    // Элемент: bMainSupport
                     lv_obj_t *obj = lv_button_create(parent_obj);
                     objects.b_main_support = obj;
                     lv_obj_set_pos(obj, 534, 240);
@@ -483,7 +483,7 @@ void create_screen_def_page1() {
     {
         lv_obj_t *parent_obj = obj;
         {
-            // cPage
+            // Элемент: cPage
             lv_obj_t *obj = lv_obj_create(parent_obj);
             objects.c_page = obj;
             lv_obj_set_pos(obj, 0, 0);
@@ -499,7 +499,7 @@ void create_screen_def_page1() {
             {
                 lv_obj_t *parent_obj = obj;
                 {
-                    // cBar
+                    // Элемент: cBar
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     objects.c_bar = obj;
                     lv_obj_set_pos(obj, 0, 0);
@@ -518,7 +518,7 @@ void create_screen_def_page1() {
                     {
                         lv_obj_t *parent_obj = obj;
                         {
-                            // Back
+                            // Элемент: Back
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.back = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -540,7 +540,7 @@ void create_screen_def_page1() {
                             }
                         }
                         {
-                            // Title
+                            // Элемент: Title
                             lv_obj_t *obj = lv_obj_create(parent_obj);
                             objects.title = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -569,7 +569,7 @@ void create_screen_def_page1() {
                             }
                         }
                         {
-                            // sig_1
+                            // Элемент: sig_1
                             lv_obj_t *obj = lv_obj_create(parent_obj);
                             objects.sig_1 = obj;
                             lv_obj_set_pos(obj, LV_PCT(0), 0);
@@ -589,7 +589,7 @@ void create_screen_def_page1() {
                             {
                                 lv_obj_t *parent_obj = obj;
                                 {
-                                    // bSig1_2
+                                    // Элемент: bSig1_2
                                     lv_obj_t *obj = lv_button_create(parent_obj);
                                     objects.b_sig1_2 = obj;
                                     lv_obj_set_pos(obj, LV_PCT(0), LV_PCT(0));
@@ -602,7 +602,7 @@ void create_screen_def_page1() {
                                     lv_obj_set_style_radius(obj, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
                                 }
                                 {
-                                    // bSig1
+                                    // Элемент: bSig1
                                     lv_obj_t *obj = lv_button_create(parent_obj);
                                     objects.b_sig1 = obj;
                                     lv_obj_set_pos(obj, LV_PCT(0), LV_PCT(0));
@@ -615,7 +615,7 @@ void create_screen_def_page1() {
                                     lv_obj_set_style_radius(obj, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
                                 }
                                 {
-                                    // bSig1_1
+                                    // Элемент: bSig1_1
                                     lv_obj_t *obj = lv_button_create(parent_obj);
                                     objects.b_sig1_1 = obj;
                                     lv_obj_set_pos(obj, LV_PCT(0), LV_PCT(0));
@@ -630,7 +630,7 @@ void create_screen_def_page1() {
                             }
                         }
                         {
-                            // Next_2
+                            // Элемент: Next_2
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_2 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -654,7 +654,7 @@ void create_screen_def_page1() {
                     }
                 }
                 {
-                    // cButton
+                    // Элемент: cButton
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     objects.c_button = obj;
                     lv_obj_set_pos(obj, 0, LV_PCT(17));
@@ -680,7 +680,7 @@ void create_screen_def_page1() {
                     {
                         lv_obj_t *parent_obj = obj;
                         {
-                            // b1
+                            // Элемент: b1
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.b1 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -701,7 +701,7 @@ void create_screen_def_page1() {
                             }
                         }
                         {
-                            // b2
+                            // Элемент: b2
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.b2 = obj;
                             lv_obj_set_pos(obj, 266, 0);
@@ -723,7 +723,7 @@ void create_screen_def_page1() {
                             }
                         }
                         {
-                            // b3
+                            // Элемент: b3
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.b3 = obj;
                             lv_obj_set_pos(obj, 533, 0);
@@ -745,7 +745,7 @@ void create_screen_def_page1() {
                             }
                         }
                         {
-                            // b4
+                            // Элемент: b4
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.b4 = obj;
                             lv_obj_set_pos(obj, 0, 209);
@@ -767,7 +767,7 @@ void create_screen_def_page1() {
                             }
                         }
                         {
-                            // b5
+                            // Элемент: b5
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.b5 = obj;
                             lv_obj_set_pos(obj, 266, 209);
@@ -790,7 +790,7 @@ void create_screen_def_page1() {
                             }
                         }
                         {
-                            // b6
+                            // Элемент: b6
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.b6 = obj;
                             lv_obj_set_pos(obj, 533, 209);
@@ -832,7 +832,7 @@ void create_screen_def_page2() {
     {
         lv_obj_t *parent_obj = obj;
         {
-            // cPage_1
+            // Элемент: cPage_1
             lv_obj_t *obj = lv_obj_create(parent_obj);
             objects.c_page_1 = obj;
             lv_obj_set_pos(obj, 0, 0);
@@ -848,7 +848,7 @@ void create_screen_def_page2() {
             {
                 lv_obj_t *parent_obj = obj;
                 {
-                    // cBar_1
+                    // Элемент: cBar_1
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     objects.c_bar_1 = obj;
                     lv_obj_set_pos(obj, 0, 0);
@@ -867,7 +867,7 @@ void create_screen_def_page2() {
                     {
                         lv_obj_t *parent_obj = obj;
                         {
-                            // Back_1
+                            // Элемент: Back_1
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.back_1 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -889,7 +889,7 @@ void create_screen_def_page2() {
                             }
                         }
                         {
-                            // Title_1
+                            // Элемент: Title_1
                             lv_obj_t *obj = lv_obj_create(parent_obj);
                             objects.title_1 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -918,7 +918,7 @@ void create_screen_def_page2() {
                             }
                         }
                         {
-                            // Next_3
+                            // Элемент: Next_3
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_3 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -941,7 +941,7 @@ void create_screen_def_page2() {
                             }
                         }
                         {
-                            // Next_4
+                            // Элемент: Next_4
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_4 = obj;
                             lv_obj_set_pos(obj, -46, 171);
@@ -964,7 +964,7 @@ void create_screen_def_page2() {
                             }
                         }
                         {
-                            // Next_5
+                            // Элемент: Next_5
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_5 = obj;
                             lv_obj_set_pos(obj, -126, 171);
@@ -988,7 +988,7 @@ void create_screen_def_page2() {
                     }
                 }
                 {
-                    // cButton_1
+                    // Элемент: cButton_1
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     objects.c_button_1 = obj;
                     lv_obj_set_pos(obj, 0, LV_PCT(17));
@@ -1328,7 +1328,7 @@ void create_screen_def_page3() {
     {
         lv_obj_t *parent_obj = obj;
         {
-            // cPage_2
+            // Элемент: cPage_2
             lv_obj_t *obj = lv_obj_create(parent_obj);
             objects.c_page_2 = obj;
             lv_obj_set_pos(obj, 0, 0);
@@ -1344,7 +1344,7 @@ void create_screen_def_page3() {
             {
                 lv_obj_t *parent_obj = obj;
                 {
-                    // cBar_3
+                    // Элемент: cBar_3
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     objects.c_bar_3 = obj;
                     lv_obj_set_pos(obj, 0, 0);
@@ -1363,7 +1363,7 @@ void create_screen_def_page3() {
                     {
                         lv_obj_t *parent_obj = obj;
                         {
-                            // Back_3
+                            // Элемент: Back_3
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.back_3 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -1385,7 +1385,7 @@ void create_screen_def_page3() {
                             }
                         }
                         {
-                            // Title_3
+                            // Элемент: Title_3
                             lv_obj_t *obj = lv_obj_create(parent_obj);
                             objects.title_3 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -1414,7 +1414,7 @@ void create_screen_def_page3() {
                             }
                         }
                         {
-                            // Next_7
+                            // Элемент: Next_7
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_7 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -1437,7 +1437,7 @@ void create_screen_def_page3() {
                             }
                         }
                         {
-                            // Next_8
+                            // Элемент: Next_8
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_8 = obj;
                             lv_obj_set_pos(obj, -46, 171);
@@ -1460,7 +1460,7 @@ void create_screen_def_page3() {
                             }
                         }
                         {
-                            // Next_9
+                            // Элемент: Next_9
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_9 = obj;
                             lv_obj_set_pos(obj, -126, 171);
@@ -1484,7 +1484,7 @@ void create_screen_def_page3() {
                     }
                 }
                 {
-                    // cButton_2
+                    // Элемент: cButton_2
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     objects.c_button_2 = obj;
                     lv_obj_set_pos(obj, 0, LV_PCT(17));
@@ -1902,7 +1902,7 @@ void create_screen_def_page4() {
     {
         lv_obj_t *parent_obj = obj;
         {
-            // cPage_3
+            // Элемент: cPage_3
             lv_obj_t *obj = lv_obj_create(parent_obj);
             objects.c_page_3 = obj;
             lv_obj_set_pos(obj, 0, 0);
@@ -1918,7 +1918,7 @@ void create_screen_def_page4() {
             {
                 lv_obj_t *parent_obj = obj;
                 {
-                    // cBar_4
+                    // Элемент: cBar_4
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     objects.c_bar_4 = obj;
                     lv_obj_set_pos(obj, 0, 0);
@@ -1937,7 +1937,7 @@ void create_screen_def_page4() {
                     {
                         lv_obj_t *parent_obj = obj;
                         {
-                            // Back_4
+                            // Элемент: Back_4
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.back_4 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -1959,7 +1959,7 @@ void create_screen_def_page4() {
                             }
                         }
                         {
-                            // Title_4
+                            // Элемент: Title_4
                             lv_obj_t *obj = lv_obj_create(parent_obj);
                             objects.title_4 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -1988,7 +1988,7 @@ void create_screen_def_page4() {
                             }
                         }
                         {
-                            // Next_10
+                            // Элемент: Next_10
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_10 = obj;
                             lv_obj_set_pos(obj, 0, 0);
@@ -2011,7 +2011,7 @@ void create_screen_def_page4() {
                             }
                         }
                         {
-                            // Next_11
+                            // Элемент: Next_11
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_11 = obj;
                             lv_obj_set_pos(obj, -46, 171);
@@ -2034,7 +2034,7 @@ void create_screen_def_page4() {
                             }
                         }
                         {
-                            // Next_12
+                            // Элемент: Next_12
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             objects.next_12 = obj;
                             lv_obj_set_pos(obj, -126, 171);
@@ -2058,7 +2058,7 @@ void create_screen_def_page4() {
                     }
                 }
                 {
-                    // cButton_3
+                    // Элемент: cButton_3
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     objects.c_button_3 = obj;
                     lv_obj_set_pos(obj, 0, LV_PCT(17));
@@ -2516,7 +2516,7 @@ void create_user_widget_123(lv_obj_t *parent_obj, int startWidgetIndex) {
     {
         lv_obj_t *parent_obj = obj;
         {
-            // cBar_2
+            // Элемент: cBar_2
             lv_obj_t *obj = lv_obj_create(parent_obj);
             ((lv_obj_t **)&objects)[startWidgetIndex + 0] = obj;
             lv_obj_set_pos(obj, 0, 0);
@@ -2535,7 +2535,7 @@ void create_user_widget_123(lv_obj_t *parent_obj, int startWidgetIndex) {
             {
                 lv_obj_t *parent_obj = obj;
                 {
-                    // Back_2
+                    // Элемент: Back_2
                     lv_obj_t *obj = lv_button_create(parent_obj);
                     ((lv_obj_t **)&objects)[startWidgetIndex + 1] = obj;
                     lv_obj_set_pos(obj, 0, 0);
@@ -2557,7 +2557,7 @@ void create_user_widget_123(lv_obj_t *parent_obj, int startWidgetIndex) {
                     }
                 }
                 {
-                    // Title_2
+                    // Элемент: Title_2
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     ((lv_obj_t **)&objects)[startWidgetIndex + 2] = obj;
                     lv_obj_set_pos(obj, 0, 0);
@@ -2586,7 +2586,7 @@ void create_user_widget_123(lv_obj_t *parent_obj, int startWidgetIndex) {
                     }
                 }
                 {
-                    // sig_2
+                    // Элемент: sig_2
                     lv_obj_t *obj = lv_obj_create(parent_obj);
                     ((lv_obj_t **)&objects)[startWidgetIndex + 4] = obj;
                     lv_obj_set_pos(obj, LV_PCT(0), 0);
@@ -2606,7 +2606,7 @@ void create_user_widget_123(lv_obj_t *parent_obj, int startWidgetIndex) {
                     {
                         lv_obj_t *parent_obj = obj;
                         {
-                            // bSig1_3
+                            // Элемент: bSig1_3
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             ((lv_obj_t **)&objects)[startWidgetIndex + 5] = obj;
                             lv_obj_set_pos(obj, LV_PCT(0), LV_PCT(0));
@@ -2619,7 +2619,7 @@ void create_user_widget_123(lv_obj_t *parent_obj, int startWidgetIndex) {
                             lv_obj_set_style_radius(obj, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
                         }
                         {
-                            // bSig1_4
+                            // Элемент: bSig1_4
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             ((lv_obj_t **)&objects)[startWidgetIndex + 6] = obj;
                             lv_obj_set_pos(obj, LV_PCT(0), LV_PCT(0));
@@ -2632,7 +2632,7 @@ void create_user_widget_123(lv_obj_t *parent_obj, int startWidgetIndex) {
                             lv_obj_set_style_radius(obj, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
                         }
                         {
-                            // bSig1_5
+                            // Элемент: bSig1_5
                             lv_obj_t *obj = lv_button_create(parent_obj);
                             ((lv_obj_t **)&objects)[startWidgetIndex + 7] = obj;
                             lv_obj_set_pos(obj, LV_PCT(0), LV_PCT(0));
@@ -2647,7 +2647,7 @@ void create_user_widget_123(lv_obj_t *parent_obj, int startWidgetIndex) {
                     }
                 }
                 {
-                    // Next_6
+                    // Элемент: Next_6
                     lv_obj_t *obj = lv_button_create(parent_obj);
                     ((lv_obj_t **)&objects)[startWidgetIndex + 8] = obj;
                     lv_obj_set_pos(obj, 0, 0);
@@ -2694,7 +2694,7 @@ void tick_screen_by_id(enum ScreensEnum screenId) {
 }
 
 //
-// Fonts
+// Шрифты
 //
 
 ext_font_desc_t fonts[] = {
@@ -2768,7 +2768,7 @@ ext_font_desc_t fonts[] = {
 };
 
 //
-// Color themes
+// Цветовые темы
 //
 
 uint32_t active_theme_index = 0;
@@ -2779,13 +2779,13 @@ uint32_t active_theme_index = 0;
 
 void create_screens() {
 
-// Set default LVGL theme
+// Установить тему LVGL по умолчанию
     lv_display_t *dispp = lv_display_get_default();
     lv_theme_t *theme = lv_theme_default_init(dispp, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), false, LV_FONT_DEFAULT);
     lv_display_set_theme(dispp, theme);
     
-    // Initialize screens
-    // Create screens
+    // Инициализировать экраны
+    // Создать экраны
     create_screen_load();
     create_screen_main_menu();
     create_screen_def_page1();

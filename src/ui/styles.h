@@ -7,12 +7,12 @@
 extern "C" {
 #endif
 
-// Style: Button_Style
+// Стиль: Button_Style
 lv_style_t *get_style_button_style_MAIN_DEFAULT();
 void add_style_button_style(lv_obj_t *obj);
 void remove_style_button_style(lv_obj_t *obj);
 
-// Style: Panel
+// Стиль: Panel
 lv_style_t *get_style_panel_MAIN_DEFAULT();
 void add_style_panel(lv_obj_t *obj);
 void remove_style_panel(lv_obj_t *obj);

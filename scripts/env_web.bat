@@ -1,8 +1,4 @@
 @echo off
-REM Activate local web build toolchain (emsdk + cmake) for Screen32.
-REM Priority:
-REM   1) SCREEN32_EMSDK_DIR / SCREEN32_CMAKE_DIR env vars
-REM   2) user-local defaults under C:\Users\sign\CODE\Emsdk
 
 if defined SCREEN32_EMSDK_DIR (
     set "_SCREEN32_EMSDK_DIR=%SCREEN32_EMSDK_DIR%"

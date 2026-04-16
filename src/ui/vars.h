@@ -8,15 +8,15 @@
 extern "C" {
 #endif
 
-// enum declarations
+// Объявления enum
 
-// Flow global variables
+// Глобальные переменные Flow
 
 enum FlowGlobalVariables {
     FLOW_GLOBAL_VARIABLE_NONE
 };
 
-// Native global variables
+// Нативные глобальные переменные
 
 #ifdef __cplusplus
 }

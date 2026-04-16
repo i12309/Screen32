@@ -96,6 +96,14 @@ bool OfflineDemoController::configureDefaultDemo() {
 }
 
 bool OfflineDemoController::start(uint32_t startPageId) {
+    // Держим demo-правила самодостаточными: если вызывающий код не задал свой порядок/bindings,
+    // контроллер применяет встроенные настройки до первого запуска.
+    if (_pageOrderCount == 0) {
+        if (!configureDefaultDemo()) {
+            return false;
+        }
+    }
+
     uint32_t resolvedPageId = 0;
     if (!pickStartPage(startPageId, resolvedPageId)) {
         return false;

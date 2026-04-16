@@ -7,9 +7,8 @@
 
 namespace demo {
 
-// Platform hook: create transport instance according to parsed frontend config.
-// Returns nullptr for offline/none mode or when transport bootstrap fails.
+// Платформенный хук: создает экземпляр transport по распарсенному frontend-конфигу.
+// Возвращает nullptr для режима offline/none или при ошибке инициализации transport.
 std::unique_ptr<ITransport> platform_create_transport(const FrontendConfig& config);
 
 } // namespace demo
-

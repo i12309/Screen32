@@ -133,7 +133,8 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
         "    \"txPin\": 17\n"
         "  },\n"
         "  \"offline_demo\": 1,\n"
-        "  \"start_page\": 2\n"
+        "  \"firstOnlinePage\": 1,\n"
+        "  \"firstOfflinePage\": 2\n"
         "}\n";
 
     strncpy(outJson, json, outSize - 1);

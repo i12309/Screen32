@@ -42,7 +42,8 @@ if not "%_BUILD_RC%"=="0" (
 )
 
 echo [build_web] OK. Run local preview:
-echo             python -m http.server 8080 --directory demo_web/build
+echo             scripts\serve_web.bat
+echo             or ^(from project root^) python -m http.server 8080 --directory demo_web/build
 echo             Open: http://localhost:8080/demo_web.html
 
 exit /b 0

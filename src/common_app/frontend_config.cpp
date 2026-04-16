@@ -154,7 +154,8 @@ FrontendConfig frontend_default_config() {
     cfg.transport.type = FrontendTransportType::WsClient;
 #endif
     cfg.offlineDemo = true;
-    cfg.startPage = 2;
+    cfg.firstOnlinePage = 1;
+    cfg.firstOfflinePage = 2;
     copy_string(cfg.transport.url, sizeof(cfg.transport.url), "ws://127.0.0.1:81");
     cfg.transport.baud = 115200;
     cfg.transport.rxPin = 16;
@@ -225,11 +226,37 @@ bool frontend_parse_config_json(const char* json, FrontendConfig& outConfig) {
         }
     }
 
+    bool hasOnlinePage = false;
+    bool hasOfflinePage = false;
+    int32_t value = 0;
+
+    const char* onlinePos = find_json_key_value(json, "firstOnlinePage");
+    if (onlinePos == nullptr) {
+        onlinePos = find_json_key_value(json, "first_online_page");
+    }
+    if (onlinePos != nullptr && parse_json_int_value(onlinePos, value) && value > 0) {
+        cfg.firstOnlinePage = static_cast<uint32_t>(value);
+        hasOnlinePage = true;
+    }
+
+    const char* offlinePagePos = find_json_key_value(json, "firstOfflinePage");
+    if (offlinePagePos == nullptr) {
+        offlinePagePos = find_json_key_value(json, "first_offline_page");
+    }
+    if (offlinePagePos != nullptr && parse_json_int_value(offlinePagePos, value) && value > 0) {
+        cfg.firstOfflinePage = static_cast<uint32_t>(value);
+        hasOfflinePage = true;
+    }
+
+    // Обратная совместимость: единый start_page обновляет обе mode-страницы
+    // только если явно не заданы firstOnlinePage/firstOfflinePage.
     const char* startPos = find_json_key_value(json, "start_page");
-    if (startPos != nullptr) {
-        int32_t value = 0;
-        if (parse_json_int_value(startPos, value) && value > 0) {
-            cfg.startPage = static_cast<uint32_t>(value);
+    if (startPos != nullptr && parse_json_int_value(startPos, value) && value > 0) {
+        if (!hasOnlinePage) {
+            cfg.firstOnlinePage = static_cast<uint32_t>(value);
+        }
+        if (!hasOfflinePage) {
+            cfg.firstOfflinePage = static_cast<uint32_t>(value);
         }
     }
 

@@ -2,7 +2,7 @@
 
 namespace demo {
 
-// Thin frontend bootstrap used by platform entry points.
+// Тонкий bootstrap frontend-слоя, который вызывается из платформенных точек входа.
 void app_setup();
 void app_loop();
 

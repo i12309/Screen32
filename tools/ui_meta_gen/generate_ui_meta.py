@@ -1,11 +1,11 @@
 ﻿#!/usr/bin/env python3
-"""Generate UI meta-layer from EEZ/LVGL generated UI sources.
+"""Генерирует UI meta-layer из сгенерированных EEZ/LVGL исходников UI.
 
-Input:
+Вход:
 - src/ui/screens.h
 - src/ui/screens.c
 
-Output (under src/common_app/generated):
+Выход (в src/common_app/generated):
 - page_ids.generated.h
 - element_ids.generated.h
 - page_descriptors.generated.h
@@ -160,7 +160,7 @@ def make_element_enum_name(object_name: str) -> str:
 
 
 def stable_element_id(object_name: str, used_ids: set[int]) -> int:
-    # Keep IDs stable by hashing object names; resolve rare collisions deterministically.
+    # Стабилизируем ID по хэшу имени объекта; редкие коллизии разрешаем детерминированно.
     seed = f"screen32:element:{object_name}"
     counter = 0
     while True:
@@ -205,7 +205,7 @@ def infer_type_and_flags(element: ElementInfo) -> tuple[str, Dict[str, bool]]:
         flags["supports_text"] = True
         return "SCREEN32_ELEMENT_TYPE_TEXT", flags
 
-    # Default for generic containers: text-capable through nested label lookup.
+    # Для generic-контейнеров по умолчанию считаем text-capable через вложенный поиск label.
     flags["supports_text"] = True
     return "SCREEN32_ELEMENT_TYPE_TEXT", flags
 
@@ -509,7 +509,7 @@ def render_ui_object_map_cpp(
         "    size_t boundCount = 0;",
         "    bool allOk = true;",
         "",
-        "    // Page map",
+        "    // Карта страниц",
     ]
 
     for page in pages:
@@ -517,7 +517,7 @@ def render_ui_object_map_cpp(
             f"    allOk = bind_page(objectMap, {page.page_id}u, objects.{page.object_name}) && allOk;"
         )
 
-    lines.extend(["", "    // Element map", ""])
+    lines.extend(["", "    // Карта элементов", ""])
 
     for object_name in element_order:
         info = element_map[object_name]
@@ -610,9 +610,9 @@ def render_eez_page_meta_cpp(pages: List[PageInfo]) -> str:
 
 def write_file(path: Path, content: str) -> None:
     header = (
-        "// AUTO-GENERATED FILE.\n"
-        "// Source: src/ui/screens.h + src/ui/screens.c\n"
-        "// DO NOT EDIT MANUALLY. Run: python tools/ui_meta_gen/generate_ui_meta.py\n\n"
+        "// АВТОСГЕНЕРИРОВАННЫЙ ФАЙЛ.\n"
+        "// Источник: src/ui/screens.h + src/ui/screens.c\n"
+        "// НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ. Запуск: python tools/ui_meta_gen/generate_ui_meta.py\n\n"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(header + content, encoding="utf-8", newline="\n")
