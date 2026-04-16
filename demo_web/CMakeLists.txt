@@ -14,6 +14,7 @@ set(DEMO_ROOT ${CMAKE_CURRENT_LIST_DIR}/..)
 set(SRC_DIR ${DEMO_ROOT}/src)
 set(UI_DIR ${SRC_DIR}/ui)
 set(COMMON_APP_DIR ${SRC_DIR}/common_app)
+set(GENERATED_META_DIR ${COMMON_APP_DIR}/generated)
 set(WEB_PLATFORM_DIR ${SRC_DIR}/platform_web)
 set(SCREENLIB_ROOT ${DEMO_ROOT}/lib/screenLIB)
 set(SCREENLIB_CORE_DIR ${SCREENLIB_ROOT}/lib/core/src)
@@ -57,6 +58,8 @@ set(APP_SOURCES
     ${COMMON_APP_DIR}/app_core.cpp
     ${COMMON_APP_DIR}/frontend_config.cpp
     ${COMMON_APP_DIR}/frontend_runtime.cpp
+    ${GENERATED_META_DIR}/ui_object_map.generated.cpp
+    ${GENERATED_META_DIR}/eez_page_meta.generated.cpp
     ${COMMON_APP_DIR}/navigation.cpp
     ${COMMON_APP_DIR}/shared_app.cpp
     ${WEB_PLATFORM_DIR}/platform.cpp

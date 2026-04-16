@@ -115,3 +115,27 @@ scripts\build_web.bat
 `platformio.ini`, `demo_web/CMakeLists.txt` и исходники проекта остаются machine-agnostic.
 
 Note for web target: no separate desktop SDL2 installation is needed.
+
+## UI Meta Generation
+
+Screen client meta-layer is generated from EEZ/LVGL generated UI sources (`src/ui/screens.h`, `src/ui/screens.c`):
+
+```powershell
+python scripts/generate_ui_meta.py
+```
+
+Generated files:
+
+- `src/common_app/generated/page_ids.generated.h`
+- `src/common_app/generated/element_ids.generated.h`
+- `src/common_app/generated/page_descriptors.generated.h`
+- `src/common_app/generated/element_descriptors.generated.h`
+- `src/common_app/generated/ui_object_map.generated.h`
+- `src/common_app/generated/ui_object_map.generated.cpp`
+- `src/common_app/generated/eez_page_meta.generated.cpp`
+
+Notes:
+
+- PlatformIO build runs this generator automatically via `extra_script.py`.
+- Generated files are deterministic/reproducible and should stay in sync with current EEZ UI output.
+- Shared ids/descriptors headers can be reused by frontend and backend; frontend-only object map/page meta stay in generated `.cpp` integration layer.

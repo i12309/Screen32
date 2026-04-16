@@ -147,7 +147,7 @@ std::unique_ptr<ITransport> platform_create_transport(const FrontendConfig& conf
     }
 
     if (config.transport.type == FrontendTransportType::Uart) {
-        auto transport = std::make_unique<Esp32UartTransport>();
+        std::unique_ptr<Esp32UartTransport> transport(new Esp32UartTransport());
         if (!transport->begin(&Serial1,
                               config.transport.baud,
                               static_cast<int8_t>(config.transport.rxPin),
@@ -158,7 +158,7 @@ std::unique_ptr<ITransport> platform_create_transport(const FrontendConfig& conf
     }
 
     if (config.transport.type == FrontendTransportType::WsClient) {
-        auto transport = std::make_unique<WebSocketClientLink>();
+        std::unique_ptr<WebSocketClientLink> transport(new WebSocketClientLink());
         if (!transport->begin(config.transport.url)) {
             return nullptr;
         }

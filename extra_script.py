@@ -7,6 +7,33 @@ Import("env")
 import os
 import subprocess
 import shutil
+import sys
+
+
+def run_ui_meta_generator():
+    project_dir = env.subst("$PROJECT_DIR")
+    generator_script = os.path.join(project_dir, "scripts", "generate_ui_meta.py")
+    if not os.path.isfile(generator_script):
+        print("\n[ERROR] UI meta generator script not found:")
+        print(f"        {generator_script}")
+        return 1
+
+    python_cmd = env.subst("$PYTHONEXE") or sys.executable
+    print("\n[GEN] Running UI meta generator...")
+    result = subprocess.run(
+        [python_cmd, generator_script],
+        cwd=project_dir,
+        capture_output=False,
+        text=True,
+    )
+    if result.returncode != 0:
+        print("[GEN] UI meta generation failed")
+        return result.returncode
+    return 0
+
+
+if run_ui_meta_generator() != 0:
+    raise SystemExit(1)
 
 def build_web_action(source, target, env):
     # Точка входа кастомной цели PlatformIO.

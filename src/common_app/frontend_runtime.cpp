@@ -7,10 +7,11 @@
 #include <lvgl.h>
 
 #include "common_app/app_core.h"
+#include "common_app/generated/ui_object_map.generated.h"
 #include "common_app/frontend_platform.h"
-#include "runtime/ScreenClient.h"
 #include "lvgl_eez/EezLvglAdapter.h"
 #include "lvgl_eez/UiObjectMap.h"
+#include "runtime/ScreenClient.h"
 
 extern "C" {
 #include "ui/screens.h"
@@ -21,47 +22,10 @@ namespace demo {
 
 namespace {
 
-constexpr size_t kMaxObjectBindings = 96;
-constexpr size_t kMaxPageBindings = 8;
-constexpr size_t kMaxTrackedElements = 96;
+constexpr size_t kMaxObjectBindings = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
+constexpr size_t kMaxPageBindings = SCREEN32_PAGE_DESCRIPTOR_COUNT;
+constexpr size_t kMaxTrackedElements = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
 constexpr uint32_t kHeartbeatPeriodMs = 1000;
-
-enum ElementId : uint32_t {
-    E_MAIN_TASK = 1001,
-    E_MAIN_PROFILE = 1002,
-    E_MAIN_NET = 1003,
-    E_MAIN_SERVICE = 1004,
-    E_MAIN_STATS = 1005,
-    E_MAIN_SUPPORT = 1006,
-
-    E_PAGE1_BACK = 1101,
-    E_PAGE1_NEXT = 1102,
-    E_PAGE1_TITLE = 1103,
-    E_PAGE1_B1 = 1104,
-    E_PAGE1_B2 = 1105,
-    E_PAGE1_B3 = 1106,
-    E_PAGE1_B4 = 1107,
-    E_PAGE1_B5 = 1108,
-    E_PAGE1_B6 = 1109,
-
-    E_PAGE2_BACK = 1201,
-    E_PAGE2_NEXT3 = 1202,
-    E_PAGE2_NEXT4 = 1203,
-    E_PAGE2_NEXT5 = 1204,
-    E_PAGE2_TITLE = 1205,
-
-    E_PAGE3_BACK = 1301,
-    E_PAGE3_NEXT7 = 1302,
-    E_PAGE3_NEXT8 = 1303,
-    E_PAGE3_NEXT9 = 1304,
-    E_PAGE3_TITLE = 1305,
-
-    E_PAGE4_BACK = 1401,
-    E_PAGE4_NEXT10 = 1402,
-    E_PAGE4_NEXT11 = 1403,
-    E_PAGE4_NEXT12 = 1404,
-    E_PAGE4_TITLE = 1405,
-};
 
 class NullTransport : public ITransport {
 public:
@@ -77,12 +41,6 @@ public:
         return 0;
     }
     void tick() override {}
-};
-
-struct TrackedElement {
-    uint32_t elementId = 0;
-    uint32_t pageId = 0;
-    lv_obj_t* obj = nullptr;
 };
 
 struct RuntimeState {
@@ -101,7 +59,7 @@ struct RuntimeState {
     screenlib::adapter::UiObjectMap objectMap;
     screenlib::adapter::EezLvglAdapter adapter;
 
-    TrackedElement tracked[kMaxTrackedElements] = {};
+    Screen32BoundElement tracked[kMaxTrackedElements] = {};
     size_t trackedCount = 0;
 
     RuntimeState()
@@ -112,14 +70,7 @@ struct RuntimeState {
 RuntimeState g_state;
 
 uint32_t current_page_id() {
-    lv_obj_t* active = lv_scr_act();
-    if (active == objects.load) return SCREEN_ID_LOAD;
-    if (active == objects.main_menu) return SCREEN_ID_MAIN_MENU;
-    if (active == objects.def_page1) return SCREEN_ID_DEF_PAGE1;
-    if (active == objects.def_page2) return SCREEN_ID_DEF_PAGE2;
-    if (active == objects.def_page3) return SCREEN_ID_DEF_PAGE3;
-    if (active == objects.def_page4) return SCREEN_ID_DEF_PAGE4;
-    return SCREEN_ID_MAIN_MENU;
+    return screen32_current_page_id();
 }
 
 void copy_text_safe(char* dst, size_t dstSize, const char* src) {
@@ -220,37 +171,7 @@ bool read_element_int_value(lv_obj_t* obj, int32_t& outValue) {
 
 bool hook_show_page(void* userData, void* pageTarget) {
     (void)userData;
-    lv_obj_t* target = static_cast<lv_obj_t*>(pageTarget);
-    if (target == nullptr) {
-        return false;
-    }
-
-    if (target == objects.load) {
-        loadScreen(SCREEN_ID_LOAD);
-        return true;
-    }
-    if (target == objects.main_menu) {
-        loadScreen(SCREEN_ID_MAIN_MENU);
-        return true;
-    }
-    if (target == objects.def_page1) {
-        loadScreen(SCREEN_ID_DEF_PAGE1);
-        return true;
-    }
-    if (target == objects.def_page2) {
-        loadScreen(SCREEN_ID_DEF_PAGE2);
-        return true;
-    }
-    if (target == objects.def_page3) {
-        loadScreen(SCREEN_ID_DEF_PAGE3);
-        return true;
-    }
-    if (target == objects.def_page4) {
-        loadScreen(SCREEN_ID_DEF_PAGE4);
-        return true;
-    }
-
-    return false;
+    return screen32_load_page_by_target(pageTarget);
 }
 
 bool hook_set_text(void* userData, void* uiObject, const char* text) {
@@ -334,13 +255,35 @@ bool hook_set_color(void* userData, void* uiObject, uint32_t bgColor, uint32_t f
     return true;
 }
 
-TrackedElement* find_tracked_element_by_id(uint32_t elementId) {
+const Screen32BoundElement* find_tracked_element_by_id(uint32_t elementId) {
+    return screen32_find_bound_element(g_state.tracked, g_state.trackedCount, elementId);
+}
+
+void on_ui_event_cb(lv_event_t* e);
+
+void attach_generated_ui_event_handlers() {
     for (size_t i = 0; i < g_state.trackedCount; ++i) {
-        if (g_state.tracked[i].elementId == elementId) {
-            return &g_state.tracked[i];
+        const Screen32BoundElement& tracked = g_state.tracked[i];
+        if (tracked.obj == nullptr || tracked.descriptor == nullptr) {
+            continue;
+        }
+
+        if (tracked.descriptor->emits_button_event) {
+            lv_obj_add_event_cb(
+                tracked.obj,
+                on_ui_event_cb,
+                LV_EVENT_CLICKED,
+                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
+        }
+
+        if (tracked.descriptor->emits_input_event) {
+            lv_obj_add_event_cb(
+                tracked.obj,
+                on_ui_event_cb,
+                LV_EVENT_VALUE_CHANGED,
+                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
         }
     }
-    return nullptr;
 }
 
 void on_ui_event_cb(lv_event_t* e) {
@@ -349,16 +292,23 @@ void on_ui_event_cb(lv_event_t* e) {
     }
 
     const uint32_t elementId = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(e)));
+    const Screen32BoundElement* tracked = find_tracked_element_by_id(elementId);
+    const Screen32ElementDescriptor* descriptor =
+        (tracked != nullptr) ? tracked->descriptor : screen32_find_element_descriptor(elementId);
+    if (descriptor == nullptr) {
+        return;
+    }
+
     const uint32_t pageId = current_page_id();
     const lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
 
-    if (code == LV_EVENT_CLICKED) {
+    if (code == LV_EVENT_CLICKED && descriptor->emits_button_event) {
         g_state.adapter.emitButtonEvent(elementId, pageId);
         return;
     }
 
-    if (code != LV_EVENT_VALUE_CHANGED || target == nullptr) {
+    if (code != LV_EVENT_VALUE_CHANGED || target == nullptr || !descriptor->emits_input_event) {
         return;
     }
 
@@ -375,73 +325,6 @@ void on_ui_event_cb(lv_event_t* e) {
     }
 }
 
-bool bind_page(uint32_t pageId, lv_obj_t* pageObj) {
-    return pageObj != nullptr && g_state.objectMap.bindPage(pageId, pageObj);
-}
-
-bool bind_element(uint32_t elementId, uint32_t pageId, lv_obj_t* obj) {
-    if (obj == nullptr) {
-        return false;
-    }
-    if (!g_state.objectMap.bindElement(elementId, obj)) {
-        return false;
-    }
-    if (g_state.trackedCount < kMaxTrackedElements) {
-        g_state.tracked[g_state.trackedCount++] = TrackedElement{elementId, pageId, obj};
-    }
-
-    lv_obj_add_event_cb(obj, on_ui_event_cb, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<uintptr_t>(elementId)));
-    lv_obj_add_event_cb(obj, on_ui_event_cb, LV_EVENT_VALUE_CHANGED, reinterpret_cast<void*>(static_cast<uintptr_t>(elementId)));
-    return true;
-}
-
-void bind_default_ui_map() {
-    g_state.objectMap.clear();
-    g_state.trackedCount = 0;
-
-    bind_page(SCREEN_ID_LOAD, objects.load);
-    bind_page(SCREEN_ID_MAIN_MENU, objects.main_menu);
-    bind_page(SCREEN_ID_DEF_PAGE1, objects.def_page1);
-    bind_page(SCREEN_ID_DEF_PAGE2, objects.def_page2);
-    bind_page(SCREEN_ID_DEF_PAGE3, objects.def_page3);
-    bind_page(SCREEN_ID_DEF_PAGE4, objects.def_page4);
-
-    bind_element(E_MAIN_TASK, SCREEN_ID_MAIN_MENU, objects.b_main_task);
-    bind_element(E_MAIN_PROFILE, SCREEN_ID_MAIN_MENU, objects.b_main_profile);
-    bind_element(E_MAIN_NET, SCREEN_ID_MAIN_MENU, objects.b_main_net);
-    bind_element(E_MAIN_SERVICE, SCREEN_ID_MAIN_MENU, objects.b_main_service);
-    bind_element(E_MAIN_STATS, SCREEN_ID_MAIN_MENU, objects.b_main_stats);
-    bind_element(E_MAIN_SUPPORT, SCREEN_ID_MAIN_MENU, objects.b_main_support);
-
-    bind_element(E_PAGE1_BACK, SCREEN_ID_DEF_PAGE1, objects.back);
-    bind_element(E_PAGE1_NEXT, SCREEN_ID_DEF_PAGE1, objects.next_2);
-    bind_element(E_PAGE1_TITLE, SCREEN_ID_DEF_PAGE1, objects.title);
-    bind_element(E_PAGE1_B1, SCREEN_ID_DEF_PAGE1, objects.b1);
-    bind_element(E_PAGE1_B2, SCREEN_ID_DEF_PAGE1, objects.b2);
-    bind_element(E_PAGE1_B3, SCREEN_ID_DEF_PAGE1, objects.b3);
-    bind_element(E_PAGE1_B4, SCREEN_ID_DEF_PAGE1, objects.b4);
-    bind_element(E_PAGE1_B5, SCREEN_ID_DEF_PAGE1, objects.b5);
-    bind_element(E_PAGE1_B6, SCREEN_ID_DEF_PAGE1, objects.b6);
-
-    bind_element(E_PAGE2_BACK, SCREEN_ID_DEF_PAGE2, objects.back_1);
-    bind_element(E_PAGE2_NEXT3, SCREEN_ID_DEF_PAGE2, objects.next_3);
-    bind_element(E_PAGE2_NEXT4, SCREEN_ID_DEF_PAGE2, objects.next_4);
-    bind_element(E_PAGE2_NEXT5, SCREEN_ID_DEF_PAGE2, objects.next_5);
-    bind_element(E_PAGE2_TITLE, SCREEN_ID_DEF_PAGE2, objects.title_1);
-
-    bind_element(E_PAGE3_BACK, SCREEN_ID_DEF_PAGE3, objects.back_3);
-    bind_element(E_PAGE3_NEXT7, SCREEN_ID_DEF_PAGE3, objects.next_7);
-    bind_element(E_PAGE3_NEXT8, SCREEN_ID_DEF_PAGE3, objects.next_8);
-    bind_element(E_PAGE3_NEXT9, SCREEN_ID_DEF_PAGE3, objects.next_9);
-    bind_element(E_PAGE3_TITLE, SCREEN_ID_DEF_PAGE3, objects.title_3);
-
-    bind_element(E_PAGE4_BACK, SCREEN_ID_DEF_PAGE4, objects.back_4);
-    bind_element(E_PAGE4_NEXT10, SCREEN_ID_DEF_PAGE4, objects.next_10);
-    bind_element(E_PAGE4_NEXT11, SCREEN_ID_DEF_PAGE4, objects.next_11);
-    bind_element(E_PAGE4_NEXT12, SCREEN_ID_DEF_PAGE4, objects.next_12);
-    bind_element(E_PAGE4_TITLE, SCREEN_ID_DEF_PAGE4, objects.title_4);
-}
-
 DeviceInfo make_device_info() {
     DeviceInfo info = DeviceInfo_init_zero;
     info.protocol_version = 1;
@@ -455,16 +338,22 @@ DeviceInfo make_device_info() {
     return info;
 }
 
-bool fill_page_element_state(const TrackedElement& tracked, PageElementState& outState) {
+bool fill_page_element_state(const Screen32BoundElement& tracked, PageElementState& outState) {
     if (tracked.obj == nullptr || !lv_obj_is_valid(tracked.obj)) {
         return false;
     }
 
-    outState = PageElementState_init_zero;
+    PageElementState zeroState = PageElementState_init_zero;
+    outState = zeroState;
     outState.element_id = tracked.elementId;
+    const Screen32ElementDescriptor* descriptor =
+        tracked.descriptor != nullptr ? tracked.descriptor : screen32_find_element_descriptor(tracked.elementId);
+    if (descriptor == nullptr) {
+        return false;
+    }
 
     char text[65] = {};
-    if (read_element_text(tracked.obj, text, sizeof(text))) {
+    if (descriptor->supports_text && read_element_text(tracked.obj, text, sizeof(text))) {
         outState.type = ElementStateType_ELEMENT_STATE_TEXT;
         outState.which_value = PageElementState_text_value_tag;
         copy_text_safe(outState.value.text_value, sizeof(outState.value.text_value), text);
@@ -472,11 +361,15 @@ bool fill_page_element_state(const TrackedElement& tracked, PageElementState& ou
     }
 
     int32_t value = 0;
-    if (read_element_int_value(tracked.obj, value)) {
+    if (descriptor->supports_value && read_element_int_value(tracked.obj, value)) {
         outState.type = ElementStateType_ELEMENT_STATE_INT;
         outState.which_value = PageElementState_int_value_tag;
         outState.value.int_value = value;
         return true;
+    }
+
+    if (!descriptor->supports_visible) {
+        return false;
     }
 
     outState.type = ElementStateType_ELEMENT_STATE_VISIBLE;
@@ -533,7 +426,7 @@ void on_client_event(const Envelope& env, screenlib::client::ScreenClient::Event
                 elementState.page_id = current_page_id();
             }
 
-            TrackedElement* tracked = find_tracked_element_by_id(env.payload.request_element_state.element_id);
+            const Screen32BoundElement* tracked = find_tracked_element_by_id(env.payload.request_element_state.element_id);
             if (tracked != nullptr && (tracked->pageId == elementState.page_id)) {
                 elementState.found = fill_page_element_state(*tracked, elementState.element);
                 elementState.has_element = elementState.found;
@@ -571,7 +464,15 @@ bool frontend_runtime_init(const FrontendConfig& config) {
     g_state.adapter.setHooks(hooks, nullptr);
     g_state.adapter.setObjectMap(&g_state.objectMap);
 
-    bind_default_ui_map();
+    const bool mapBound = screen32_bind_generated_ui_map(
+        g_state.objectMap,
+        g_state.tracked,
+        kMaxTrackedElements,
+        &g_state.trackedCount);
+    if (!mapBound) {
+        printf("[frontend_runtime] warning: generated UI map has unbound entries\n");
+    }
+    attach_generated_ui_event_handlers();
 
     if (!g_state.offlineDemo) {
         g_state.transport = platform_create_transport(config);
@@ -622,7 +523,7 @@ bool frontend_runtime_is_offline_demo() {
 }
 
 uint32_t frontend_runtime_current_page() {
-    return current_page_id();
+    return screen32_current_page_id();
 }
 
 } // namespace demo
