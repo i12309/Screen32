@@ -82,6 +82,9 @@ pio run -t build_web
 python -m http.server 8080 --directory demo_web/build
 ```
 
+Web prerequisites: installed `emsdk` + `cmake`.
+Desktop/system `SDL2` package is not required for web build; Emscripten provides SDL2 port via `-sUSE_SDL=2`.
+
 Открыть: `http://localhost:8080/demo_web.html`
 
 ## Windows local web build
@@ -110,3 +113,5 @@ scripts\build_web.bat
 
 Важно: machine-specific paths используются только в `scripts/*.bat`.
 `platformio.ini`, `demo_web/CMakeLists.txt` и исходники проекта остаются machine-agnostic.
+
+Note for web target: no separate desktop SDL2 installation is needed.
