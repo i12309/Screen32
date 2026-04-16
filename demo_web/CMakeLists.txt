@@ -15,12 +15,18 @@ set(SRC_DIR ${DEMO_ROOT}/src)
 set(UI_DIR ${SRC_DIR}/ui)
 set(COMMON_APP_DIR ${SRC_DIR}/common_app)
 set(WEB_PLATFORM_DIR ${SRC_DIR}/platform_web)
-set(SCREENLIB_DIR ${SRC_DIR}/screenlib)
-set(NANOPB_DIR ${SRC_DIR}/third_party/nanopb)
+set(SCREENLIB_ROOT ${DEMO_ROOT}/lib/screenLIB)
+set(SCREENLIB_CORE_DIR ${SCREENLIB_ROOT}/lib/core/src)
+set(SCREENLIB_CLIENT_DIR ${SCREENLIB_ROOT}/lib/client/src)
+set(SCREENLIB_ADAPTER_DIR ${SCREENLIB_ROOT}/lib/adapter/src)
 set(LVGL_DIR ${DEMO_ROOT}/lib/lvgl)
 
 if(NOT EXISTS ${LVGL_DIR}/CMakeLists.txt)
     message(FATAL_ERROR "LVGL directory not found at ${LVGL_DIR}")
+endif()
+
+if(NOT EXISTS ${SCREENLIB_CORE_DIR}/bridge/ScreenBridge.cpp)
+    message(FATAL_ERROR "screenLIB core not found at ${SCREENLIB_CORE_DIR}")
 endif()
 
 # Параметры LVGL должны быть заданы до add_subdirectory(lvgl).
@@ -31,6 +37,14 @@ set(CONFIG_LV_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
 # Подключаем LVGL как полноценную библиотеку CMake.
 add_subdirectory(${LVGL_DIR} ${CMAKE_BINARY_DIR}/lvgl_build)
 
+include(FetchContent)
+FetchContent_Declare(
+    nanopb
+    GIT_REPOSITORY https://github.com/nanopb/nanopb.git
+    GIT_TAG nanopb-0.4.9.1
+)
+FetchContent_MakeAvailable(nanopb)
+
 set(APP_SOURCES
     ${COMMON_APP_DIR}/app_core.cpp
     ${COMMON_APP_DIR}/frontend_config.cpp
@@ -39,19 +53,18 @@ set(APP_SOURCES
     ${COMMON_APP_DIR}/shared_app.cpp
     ${WEB_PLATFORM_DIR}/platform.cpp
     ${WEB_PLATFORM_DIR}/web_main.cpp
-    ${SCREENLIB_DIR}/bridge/ScreenBridge.cpp
-    ${SCREENLIB_DIR}/frame/FrameCodec.cpp
-    ${SCREENLIB_DIR}/proto/ProtoCodec.cpp
-    ${SCREENLIB_DIR}/proto/machine.pb.c
-    ${SCREENLIB_DIR}/runtime/CommandDispatcher.cpp
-    ${SCREENLIB_DIR}/runtime/ScreenClient.cpp
-    ${SCREENLIB_DIR}/link/WebSocketClientLink.cpp
-    ${SCREENLIB_DIR}/link/UartClientLink.cpp
-    ${SCREENLIB_DIR}/lvgl_eez/EezLvglAdapter.cpp
-    ${SCREENLIB_DIR}/lvgl_eez/UiObjectMap.cpp
-    ${NANOPB_DIR}/pb_common.c
-    ${NANOPB_DIR}/pb_decode.c
-    ${NANOPB_DIR}/pb_encode.c
+    ${SCREENLIB_CORE_DIR}/bridge/ScreenBridge.cpp
+    ${SCREENLIB_CORE_DIR}/frame/FrameCodec.cpp
+    ${SCREENLIB_CORE_DIR}/proto/ProtoCodec.cpp
+    ${SCREENLIB_CORE_DIR}/proto/machine.pb.c
+    ${SCREENLIB_CLIENT_DIR}/runtime/CommandDispatcher.cpp
+    ${SCREENLIB_CLIENT_DIR}/runtime/ScreenClient.cpp
+    ${SCREENLIB_CLIENT_DIR}/link/WebSocketClientLink.cpp
+    ${SCREENLIB_ADAPTER_DIR}/lvgl_eez/EezLvglAdapter.cpp
+    ${SCREENLIB_ADAPTER_DIR}/lvgl_eez/UiObjectMap.cpp
+    ${nanopb_SOURCE_DIR}/pb_common.c
+    ${nanopb_SOURCE_DIR}/pb_decode.c
+    ${nanopb_SOURCE_DIR}/pb_encode.c
 )
 
 set(UI_SOURCES
@@ -72,8 +85,10 @@ target_include_directories(demo_web PRIVATE
     ${COMMON_APP_DIR}
     ${UI_DIR}
     ${WEB_PLATFORM_DIR}
-    ${SCREENLIB_DIR}
-    ${NANOPB_DIR}
+    ${SCREENLIB_CORE_DIR}
+    ${SCREENLIB_CLIENT_DIR}
+    ${SCREENLIB_ADAPTER_DIR}
+    ${nanopb_SOURCE_DIR}
 )
 
 target_link_libraries(demo_web PRIVATE lvgl::lvgl)

@@ -1,7 +1,7 @@
 #include "platform_esp32/platform.h"
 #include "common_app/frontend_config.h"
 #include "common_app/frontend_platform.h"
-#include "link/UartClientLink.h"
+#include "link/ITransport.h"
 #include "link/WebSocketClientLink.h"
 
 #include <Arduino.h>
@@ -66,6 +66,58 @@ void platform_log_heap(const char *tag) {
 
 namespace demo {
 
+namespace {
+
+class Esp32UartTransport : public ITransport {
+public:
+    bool begin(HardwareSerial* serial, uint32_t baud, int8_t rxPin, int8_t txPin) {
+        if (serial == nullptr || baud == 0) {
+            _serial = nullptr;
+            _started = false;
+            return false;
+        }
+        _serial = serial;
+        _serial->begin(baud, SERIAL_8N1, rxPin, txPin);
+        _started = true;
+        return true;
+    }
+
+    bool connected() const override {
+        return _started;
+    }
+
+    bool write(const uint8_t* data, size_t len) override {
+        if (!_started || _serial == nullptr || data == nullptr || len == 0) {
+            return false;
+        }
+        return _serial->write(data, len) == len;
+    }
+
+    size_t read(uint8_t* dst, size_t max_len) override {
+        if (!_started || _serial == nullptr || dst == nullptr || max_len == 0) {
+            return 0;
+        }
+
+        size_t n = 0;
+        while (n < max_len && _serial->available() > 0) {
+            const int ch = _serial->read();
+            if (ch < 0) {
+                break;
+            }
+            dst[n++] = static_cast<uint8_t>(ch);
+        }
+        return n;
+    }
+
+    void tick() override {}
+
+private:
+    HardwareSerial* _serial = nullptr;
+    bool _started = false;
+};
+
+} // namespace
+
 bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
     if (outJson == nullptr || outSize == 0) {
         return false;
@@ -95,14 +147,11 @@ std::unique_ptr<ITransport> platform_create_transport(const FrontendConfig& conf
     }
 
     if (config.transport.type == FrontendTransportType::Uart) {
-        auto transport = std::make_unique<UartClientLink>();
-        UartClientLink::Config cfg{};
-        cfg.serial = &Serial1;
-        cfg.baud = config.transport.baud;
-        cfg.rxPin = static_cast<int8_t>(config.transport.rxPin);
-        cfg.txPin = static_cast<int8_t>(config.transport.txPin);
-
-        if (!transport->begin(cfg)) {
+        auto transport = std::make_unique<Esp32UartTransport>();
+        if (!transport->begin(&Serial1,
+                              config.transport.baud,
+                              static_cast<int8_t>(config.transport.rxPin),
+                              static_cast<int8_t>(config.transport.txPin))) {
             return nullptr;
         }
         return transport;

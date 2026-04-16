@@ -1,29 +1,31 @@
-# Screen32 Frontend (EEZ + LVGL + screenLIB client)
+# Screen32 Frontend (EEZ + LVGL + screenLIB)
 
-`Screen32` — это frontend/screen-client проект.
-Интеграция выполнена через `screenLIB` (только client-side части):
+`Screen32` — frontend/screen-client проект.
+`screenLIB` подключен как внешняя зависимость (submodule), без копирования исходников в `src/`.
 
-- `core`: `FrameCodec`, `ProtoCodec`, `machine.pb.*`, `ScreenBridge`, `ITransport`
-- `client`: `ScreenClient`, `CommandDispatcher`, `WebSocketClientLink`, `UartClientLink`
-- `adapter`: `IUiAdapter`, `EezLvglAdapter`, `UiObjectMap`
+## Зависимости
 
-`host` модуль (`ScreenSystem`, `ScreenManager`, `PageRegistry`) в этот проект не подключается.
+- `lib/screenLIB` — git submodule (`https://github.com/i12309/screenLIB.git`)
+- LVGL и `esp32-smartdisplay` в `lib/`
+- `nanopb`:
+  - ESP32/PlatformIO: через `lib_deps` (`nanopb/Nanopb`)
+  - Web/CMake: через `FetchContent` (github `nanopb`)
 
-## Структура
+## Что находится в Screen32
 
-- `src/common_app/`
-  - `app_core.*` — общий LVGL цикл
-  - `navigation.*` — локальная offline-навигация
-  - `frontend_config.*` — загрузка/parsing frontend JSON
-  - `frontend_runtime.*` — общий runtime для online/offline
-  - `shared_app.*` — общий entrypoint `app_setup/app_loop`
-- `src/platform_esp32/` — ESP32 startup + config hook + transport hook
-- `src/platform_web/` — Web startup + config hook + transport hook
-- `src/screenlib/` — встроенные `core/client/adapter` части screenLIB
-- `src/third_party/nanopb/` — protobuf runtime (`pb_*`)
-- `demo_web/` — CMake target web-сборки
+Только integration-код:
 
-## Участвующие страницы (6)
+- `src/common_app/frontend_runtime.*`
+- `src/common_app/frontend_config.*`
+- `src/common_app/frontend_platform.h`
+- `src/platform_esp32/platform.cpp`
+- `src/platform_web/platform.cpp`
+- `demo_web/frontend_config.json`
+- build glue (`platformio.ini`, `demo_web/CMakeLists.txt`)
+
+Локальных копий `screenLIB` и `nanopb` в `src/` нет.
+
+## Страницы demo (6)
 
 - `SCREEN_ID_LOAD`
 - `SCREEN_ID_MAIN_MENU`
@@ -33,8 +35,6 @@
 - `SCREEN_ID_DEF_PAGE4`
 
 ## Frontend Config JSON
-
-Минимальный формат:
 
 ```json
 {
@@ -51,35 +51,31 @@
 }
 ```
 
-Где лежит конфиг:
+Где лежит:
 
-- Web: `demo_web/frontend_config.json` (preload в WASM FS как `/frontend_config.json`)
-- ESP32: compile-time embedded JSON в `src/platform_esp32/platform.cpp` (`platform_load_frontend_config_json`)
+- Web: `demo_web/frontend_config.json` (preload в `/frontend_config.json`)
+- ESP32: embedded JSON в `src/platform_esp32/platform.cpp`
 
 ## Режимы
 
-`offline_demo=1`:
+- `offline_demo=1`: UI работает локально через `navigation.*`, backend не обязателен.
+- `offline_demo=0`: frontend работает как screen-client через transport из конфига.
 
-- transport может быть `none`
-- frontend стартует без backend
-- UI интерактивен
-- локальная навигация работает через `navigation.*`
+## Сборка
 
-`offline_demo=0`:
+Перед сборкой подтянуть submodule:
 
-- frontend работает как реальный screen client
-- transport поднимается из `transport.type`:
-  - ESP32: `uart` (или `ws_client`, если явно задано)
-  - Web: `ws_client`
-- команды от backend (`show_page`, `set_text`, `set_value`, `set_visible`, `set_color`, `set_batch`) применяются через `ScreenClient -> EezLvglAdapter`
+```powershell
+git submodule update --init --recursive
+```
 
-## Сборка ESP32
+ESP32:
 
 ```powershell
 pio run -e JC8048W550C
 ```
 
-## Сборка Web
+Web:
 
 ```powershell
 pio run -t build_web

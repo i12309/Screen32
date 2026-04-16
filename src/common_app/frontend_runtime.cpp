@@ -497,7 +497,9 @@ void on_client_event(const Envelope& env, screenlib::client::ScreenClient::Event
 
     switch (env.which_payload) {
         case Envelope_request_device_info_tag: {
-            state->client->sendDeviceInfo(make_device_info());
+            // В текущем API ScreenClient нет отдельного sendDeviceInfo(),
+            // поэтому используем hello как metadata-response экрана.
+            state->client->sendHello(make_device_info());
             break;
         }
         case Envelope_request_current_page_tag: {
