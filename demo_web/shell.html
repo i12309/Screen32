@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!--
+      Файл demo_web/shell.html
+      Назначение: HTML-обёртка для wasm-приложения.
+      Здесь задаются canvas, адаптивный масштаб и объект Module для Emscripten.
+    -->
+    <meta charset="utf-8">
+    <title>EEZ/LVGL Demo - WebAssembly</title>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #canvas {
+            display: block;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="480" oncontextmenu="event.preventDefault()"></canvas>
+    <script>
+        (function() {
+            var APP_WIDTH = 800;
+            var APP_HEIGHT = 480;
+            var canvas = document.getElementById('canvas');
+
+            function fitCanvas() {
+                // Масштабируем canvas только вниз, сохраняя пропорции 800x480.
+                var vw = window.innerWidth || APP_WIDTH;
+                var vh = window.innerHeight || APP_HEIGHT;
+                var scale = Math.min(1, vw / APP_WIDTH, vh / APP_HEIGHT);
+                var w = Math.max(1, Math.floor(APP_WIDTH * scale));
+                var h = Math.max(1, Math.floor(APP_HEIGHT * scale));
+                canvas.style.width = w + 'px';
+                canvas.style.height = h + 'px';
+            }
+
+            window.addEventListener('resize', fitCanvas);
+            fitCanvas();
+        })();
+
+        var Module = {
+            canvas: (function() {
+                // Передаём Emscripten конкретный canvas для рендера.
+                return document.getElementById('canvas');
+            })()
+        };
+    </script>
+    {{{ SCRIPT }}}
+</body>
+</html>

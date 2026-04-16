@@ -1,0 +1,79 @@
+﻿cmake_minimum_required(VERSION 3.13)
+project(demo_web LANGUAGES C CXX)
+
+# Файл demo_web/CMakeLists.txt
+# Назначение: сборка web-версии (Emscripten + LVGL + UI).
+# Важно: LVGL подключается целиком как CMake-библиотека через add_subdirectory,
+# а не вручную списком исходников.
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(DEMO_ROOT ${CMAKE_CURRENT_LIST_DIR}/..)
+set(SRC_DIR ${DEMO_ROOT}/src)
+set(UI_DIR ${SRC_DIR}/ui)
+set(COMMON_APP_DIR ${SRC_DIR}/common_app)
+set(WEB_PLATFORM_DIR ${SRC_DIR}/platform_web)
+set(LVGL_DIR ${DEMO_ROOT}/lib/lvgl)
+
+if(NOT EXISTS ${LVGL_DIR}/CMakeLists.txt)
+    message(FATAL_ERROR "LVGL directory not found at ${LVGL_DIR}")
+endif()
+
+# Параметры LVGL должны быть заданы до add_subdirectory(lvgl).
+set(LV_BUILD_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lv_conf.h" CACHE PATH "Path to lv_conf.h" FORCE)
+set(CONFIG_LV_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(CONFIG_LV_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
+
+# Подключаем LVGL как полноценную библиотеку CMake.
+add_subdirectory(${LVGL_DIR} ${CMAKE_BINARY_DIR}/lvgl_build)
+
+set(APP_SOURCES
+    ${COMMON_APP_DIR}/app_core.cpp
+    ${COMMON_APP_DIR}/navigation.cpp
+    ${COMMON_APP_DIR}/shared_app.cpp
+    ${WEB_PLATFORM_DIR}/platform.cpp
+    ${WEB_PLATFORM_DIR}/web_main.cpp
+)
+
+set(UI_SOURCES
+    ${UI_DIR}/ui.c
+    ${UI_DIR}/screens.c
+    ${UI_DIR}/images.c
+    ${UI_DIR}/styles.c
+    ${UI_DIR}/ui_font_m_18.c
+    ${UI_DIR}/ui_font_m_20.c
+    ${UI_DIR}/ui_font_m_24.c
+    ${UI_DIR}/ui_font_m_70.c
+)
+
+add_executable(demo_web ${APP_SOURCES} ${UI_SOURCES})
+
+target_include_directories(demo_web PRIVATE
+    ${SRC_DIR}
+    ${COMMON_APP_DIR}
+    ${UI_DIR}
+    ${WEB_PLATFORM_DIR}
+)
+
+target_link_libraries(demo_web PRIVATE lvgl::lvgl)
+
+if(EMSCRIPTEN)
+    target_compile_options(demo_web PRIVATE
+        -O2
+        -Wno-unused-parameter
+    )
+
+    target_link_options(demo_web PRIVATE
+        -O2
+        -sUSE_SDL=2
+        -sALLOW_MEMORY_GROWTH=1
+        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap
+        -sENVIRONMENT=web
+        --shell-file
+        ${CMAKE_CURRENT_SOURCE_DIR}/shell.html
+    )
+
+    set_target_properties(demo_web PROPERTIES SUFFIX ".html")
+endif()
