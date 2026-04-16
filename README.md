@@ -84,3 +84,29 @@ python -m http.server 8080 --directory demo_web/build
 
 Открыть: `http://localhost:8080/demo_web.html`
 
+## Windows local web build
+
+Для локальной web-сборки на Windows добавлены helper-скрипты:
+
+- `scripts\env_web.bat` — активирует emsdk и добавляет CMake в `PATH`
+- `scripts\build_web.bat` — поднимает окружение и запускает `pio run -t build_web`
+- `scripts\serve_web.bat` — запускает локальный `http.server` для `demo_web/build`
+
+Рекомендуемый запуск:
+
+```bat
+scripts\build_web.bat
+```
+
+Скрипты поддерживают переменные окружения:
+
+- `SCREEN32_EMSDK_DIR`
+- `SCREEN32_CMAKE_DIR`
+
+Если переменные не заданы, используются локальные fallback-пути:
+
+- `C:\Users\sign\CODE\Emsdk\emsdk`
+- `C:\Users\sign\CODE\Emsdk\cmake-4.3.1-windows-x86_64`
+
+Важно: machine-specific paths используются только в `scripts/*.bat`.
+`platformio.ini`, `demo_web/CMakeLists.txt` и исходники проекта остаются machine-agnostic.
