@@ -1,4 +1,8 @@
 #include "platform_esp32/platform.h"
+#include "common_app/frontend_config.h"
+#include "common_app/frontend_platform.h"
+#include "link/UartClientLink.h"
+#include "link/WebSocketClientLink.h"
 
 #include <Arduino.h>
 #include <esp_heap_caps.h>
@@ -6,6 +10,8 @@
 #include <lvgl.h>
 #include <cstdarg>
 #include <cstdio>
+#include <memory>
+#include <cstring>
 
 /*
  * Файл src/platform_esp32/platform.cpp
@@ -57,3 +63,60 @@ void platform_log_heap(const char *tag) {
                   (unsigned long)free_psram,
                   (unsigned long)largest_psram);
 }
+
+namespace demo {
+
+bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
+    if (outJson == nullptr || outSize == 0) {
+        return false;
+    }
+
+    const char* json =
+        "{\n"
+        "  \"mode\": \"esp32\",\n"
+        "  \"transport\": {\n"
+        "    \"type\": \"uart\",\n"
+        "    \"baud\": 115200,\n"
+        "    \"rxPin\": 16,\n"
+        "    \"txPin\": 17\n"
+        "  },\n"
+        "  \"offline_demo\": 1,\n"
+        "  \"start_page\": 2\n"
+        "}\n";
+
+    strncpy(outJson, json, outSize - 1);
+    outJson[outSize - 1] = '\0';
+    return true;
+}
+
+std::unique_ptr<ITransport> platform_create_transport(const FrontendConfig& config) {
+    if (config.transport.type == FrontendTransportType::None || config.offlineDemo) {
+        return nullptr;
+    }
+
+    if (config.transport.type == FrontendTransportType::Uart) {
+        auto transport = std::make_unique<UartClientLink>();
+        UartClientLink::Config cfg{};
+        cfg.serial = &Serial1;
+        cfg.baud = config.transport.baud;
+        cfg.rxPin = static_cast<int8_t>(config.transport.rxPin);
+        cfg.txPin = static_cast<int8_t>(config.transport.txPin);
+
+        if (!transport->begin(cfg)) {
+            return nullptr;
+        }
+        return transport;
+    }
+
+    if (config.transport.type == FrontendTransportType::WsClient) {
+        auto transport = std::make_unique<WebSocketClientLink>();
+        if (!transport->begin(config.transport.url)) {
+            return nullptr;
+        }
+        return transport;
+    }
+
+    return nullptr;
+}
+
+} // namespace demo

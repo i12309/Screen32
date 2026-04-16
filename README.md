@@ -1,61 +1,85 @@
-﻿# EEZ Studio + LVGL Cross-Platform Demo
+# Screen32 Frontend (EEZ + LVGL + screenLIB client)
 
-Этот проект собирает один и тот же UI (EEZ + LVGL) для двух платформ:
-- ESP32 (`platformio`)
-- WebAssembly (`emscripten + cmake`)
+`Screen32` — это frontend/screen-client проект.
+Интеграция выполнена через `screenLIB` (только client-side части):
 
-## Актуальная структура
+- `core`: `FrameCodec`, `ProtoCodec`, `machine.pb.*`, `ScreenBridge`, `ITransport`
+- `client`: `ScreenClient`, `CommandDispatcher`, `WebSocketClientLink`, `UartClientLink`
+- `adapter`: `IUiAdapter`, `EezLvglAdapter`, `UiObjectMap`
 
-```text
-DEMO/
-├── src/
-│   ├── common_app/          # Общий app-слой для ESP32 и Web
-│   │   ├── app_core.*
-│   │   ├── navigation.*
-│   │   └── shared_app.*
-│   ├── platform_esp32/      # Платформенный слой ESP32
-│   │   └── platform.*
-│   ├── platform_web/        # Платформенный слой Web (Emscripten/SDL)
-│   │   ├── platform.*
-│   │   └── web_main.cpp
-│   ├── ui/                  # Сгенерированный EEZ UI (read-only)
-│   └── main.cpp             # Arduino entry point для ESP32
-├── include/
-│   └── lv_conf.h            # LVGL конфиг для ESP32
-├── demo_web/
-│   ├── CMakeLists.txt       # Web build (LVGL как полноценная CMake-библиотека)
-│   ├── lv_conf.h            # LVGL конфиг для Web
-│   └── shell.html           # HTML-обертка canvas
-├── lib/
-│   ├── lvgl/                # Единый LVGL для обеих платформ
-│   └── esp32-smartdisplay/  # Локальная библиотека дисплея ESP32
-├── platformio.ini
-└── extra_script.py          # Цель `pio run -t build_web`
+`host` модуль (`ScreenSystem`, `ScreenManager`, `PageRegistry`) в этот проект не подключается.
+
+## Структура
+
+- `src/common_app/`
+  - `app_core.*` — общий LVGL цикл
+  - `navigation.*` — локальная offline-навигация
+  - `frontend_config.*` — загрузка/parsing frontend JSON
+  - `frontend_runtime.*` — общий runtime для online/offline
+  - `shared_app.*` — общий entrypoint `app_setup/app_loop`
+- `src/platform_esp32/` — ESP32 startup + config hook + transport hook
+- `src/platform_web/` — Web startup + config hook + transport hook
+- `src/screenlib/` — встроенные `core/client/adapter` части screenLIB
+- `src/third_party/nanopb/` — protobuf runtime (`pb_*`)
+- `demo_web/` — CMake target web-сборки
+
+## Участвующие страницы (6)
+
+- `SCREEN_ID_LOAD`
+- `SCREEN_ID_MAIN_MENU`
+- `SCREEN_ID_DEF_PAGE1`
+- `SCREEN_ID_DEF_PAGE2`
+- `SCREEN_ID_DEF_PAGE3`
+- `SCREEN_ID_DEF_PAGE4`
+
+## Frontend Config JSON
+
+Минимальный формат:
+
+```json
+{
+  "mode": "esp32",
+  "transport": {
+    "type": "uart",
+    "url": "ws://127.0.0.1:81",
+    "baud": 115200,
+    "rxPin": 16,
+    "txPin": 17
+  },
+  "offline_demo": 1,
+  "start_page": 2
+}
 ```
 
-## Ключевые принципы
+Где лежит конфиг:
 
-- Один общий app-код: `src/common_app`.
-- Один LVGL для всех сборок: `lib/lvgl`.
-- Разделены только платформенные адаптеры:
-  - `src/platform_esp32`
-  - `src/platform_web`
+- Web: `demo_web/frontend_config.json` (preload в WASM FS как `/frontend_config.json`)
+- ESP32: compile-time embedded JSON в `src/platform_esp32/platform.cpp` (`platform_load_frontend_config_json`)
 
-## Требования
+## Режимы
 
-- PlatformIO
-- Emscripten SDK (доступны `emcmake`, `emcc`)
-- CMake + Ninja
+`offline_demo=1`:
 
-## Сборка
+- transport может быть `none`
+- frontend стартует без backend
+- UI интерактивен
+- локальная навигация работает через `navigation.*`
 
-### ESP32
+`offline_demo=0`:
+
+- frontend работает как реальный screen client
+- transport поднимается из `transport.type`:
+  - ESP32: `uart` (или `ws_client`, если явно задано)
+  - Web: `ws_client`
+- команды от backend (`show_page`, `set_text`, `set_value`, `set_visible`, `set_color`, `set_batch`) применяются через `ScreenClient -> EezLvglAdapter`
+
+## Сборка ESP32
 
 ```powershell
 pio run -e JC8048W550C
 ```
 
-### Web
+## Сборка Web
 
 ```powershell
 pio run -t build_web
@@ -64,9 +88,3 @@ python -m http.server 8080 --directory demo_web/build
 
 Открыть: `http://localhost:8080/demo_web.html`
 
-## Примечания по Web UI
-
-- Рендер идет в canvas 800x480.
-- Масштабирование в `shell.html` ограничено:
-  - больше 800x480 не растягивается,
-  - на меньших экранах масштабируется вниз с сохранением пропорций.

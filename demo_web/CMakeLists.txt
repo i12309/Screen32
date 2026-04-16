@@ -15,6 +15,8 @@ set(SRC_DIR ${DEMO_ROOT}/src)
 set(UI_DIR ${SRC_DIR}/ui)
 set(COMMON_APP_DIR ${SRC_DIR}/common_app)
 set(WEB_PLATFORM_DIR ${SRC_DIR}/platform_web)
+set(SCREENLIB_DIR ${SRC_DIR}/screenlib)
+set(NANOPB_DIR ${SRC_DIR}/third_party/nanopb)
 set(LVGL_DIR ${DEMO_ROOT}/lib/lvgl)
 
 if(NOT EXISTS ${LVGL_DIR}/CMakeLists.txt)
@@ -31,10 +33,25 @@ add_subdirectory(${LVGL_DIR} ${CMAKE_BINARY_DIR}/lvgl_build)
 
 set(APP_SOURCES
     ${COMMON_APP_DIR}/app_core.cpp
+    ${COMMON_APP_DIR}/frontend_config.cpp
+    ${COMMON_APP_DIR}/frontend_runtime.cpp
     ${COMMON_APP_DIR}/navigation.cpp
     ${COMMON_APP_DIR}/shared_app.cpp
     ${WEB_PLATFORM_DIR}/platform.cpp
     ${WEB_PLATFORM_DIR}/web_main.cpp
+    ${SCREENLIB_DIR}/bridge/ScreenBridge.cpp
+    ${SCREENLIB_DIR}/frame/FrameCodec.cpp
+    ${SCREENLIB_DIR}/proto/ProtoCodec.cpp
+    ${SCREENLIB_DIR}/proto/machine.pb.c
+    ${SCREENLIB_DIR}/runtime/CommandDispatcher.cpp
+    ${SCREENLIB_DIR}/runtime/ScreenClient.cpp
+    ${SCREENLIB_DIR}/link/WebSocketClientLink.cpp
+    ${SCREENLIB_DIR}/link/UartClientLink.cpp
+    ${SCREENLIB_DIR}/lvgl_eez/EezLvglAdapter.cpp
+    ${SCREENLIB_DIR}/lvgl_eez/UiObjectMap.cpp
+    ${NANOPB_DIR}/pb_common.c
+    ${NANOPB_DIR}/pb_decode.c
+    ${NANOPB_DIR}/pb_encode.c
 )
 
 set(UI_SOURCES
@@ -55,6 +72,8 @@ target_include_directories(demo_web PRIVATE
     ${COMMON_APP_DIR}
     ${UI_DIR}
     ${WEB_PLATFORM_DIR}
+    ${SCREENLIB_DIR}
+    ${NANOPB_DIR}
 )
 
 target_link_libraries(demo_web PRIVATE lvgl::lvgl)
@@ -71,6 +90,8 @@ if(EMSCRIPTEN)
         -sALLOW_MEMORY_GROWTH=1
         -sEXPORTED_RUNTIME_METHODS=ccall,cwrap
         -sENVIRONMENT=web
+        --preload-file
+        ${CMAKE_CURRENT_SOURCE_DIR}/frontend_config.json@/frontend_config.json
         --shell-file
         ${CMAKE_CURRENT_SOURCE_DIR}/shell.html
     )

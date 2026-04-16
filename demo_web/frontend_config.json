@@ -1,0 +1,10 @@
+{
+  "mode": "wasm",
+  "transport": {
+    "type": "none",
+    "url": "ws://127.0.0.1:81"
+  },
+  "offline_demo": 1,
+  "start_page": 2
+}
+

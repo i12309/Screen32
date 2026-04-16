@@ -1,9 +1,12 @@
 #include "shared_app.h"
 #include "app_core.h"
+#include "frontend_config.h"
+#include "frontend_runtime.h"
 #include "navigation.h"
 
 extern "C" {
 #include "ui/screens.h"
+#include "ui/ui.h"
 }
 
 namespace demo {
@@ -19,6 +22,8 @@ namespace {
 
 bool g_fallback_mode = false;
 uint32_t g_fallback_last_tick = 0;
+FrontendConfig g_frontend_config = frontend_default_config();
+bool g_offline_navigation_mode = true;
 
 bool ui_objects_ready() {
     return objects.load != nullptr &&
@@ -91,9 +96,20 @@ void configure_navigation() {
     // platform_log("[DEMO] nav bindings=%u\n", (unsigned)nav::binding_count()); // Отладка.
 }
 
-void boot_timer_cb(lv_timer_t *timer) {
-    LV_UNUSED(timer);
-    nav::next();
+ScreensEnum sanitize_start_page(uint32_t pageId) {
+    if (pageId < static_cast<uint32_t>(_SCREEN_ID_FIRST) ||
+        pageId > static_cast<uint32_t>(_SCREEN_ID_LAST)) {
+        return SCREEN_ID_MAIN_MENU;
+    }
+    return static_cast<ScreensEnum>(pageId);
+}
+
+void apply_start_page(ScreensEnum page) {
+    if (g_offline_navigation_mode) {
+        nav::go_to(page, false);
+        return;
+    }
+    loadScreen(page);
 }
 
 } // namespace
@@ -110,16 +126,22 @@ void app_setup() {
         // Если экраны не создались, показываем безопасный fallback-экран.
         // platform_log("[DEMO] ERROR: screen objects are null, switching to fallback\n");
         show_fallback_screen();
-    } else {
-        // В штатном режиме настраиваем навигацию и принудительно обновляем экран.
-        configure_navigation();
-        lv_obj_invalidate(lv_scr_act());
-        lv_refr_now(nullptr);
+        return;
     }
 
-    // Небольшая задержка для автоперехода с экрана загрузки.
-    lv_timer_t *boot_timer = lv_timer_create(boot_timer_cb, 1200, nullptr);
-    lv_timer_set_repeat_count(boot_timer, 1);
+    // Загружаем frontend-config и поднимаем общий runtime screen client.
+    frontend_load_config(g_frontend_config);
+    frontend_runtime_init(g_frontend_config);
+    g_offline_navigation_mode = frontend_runtime_is_offline_demo();
+
+    if (g_offline_navigation_mode) {
+        // В offline_demo локальная навигация живет в текущем navigation.*
+        configure_navigation();
+    }
+
+    apply_start_page(sanitize_start_page(g_frontend_config.startPage));
+    lv_obj_invalidate(lv_scr_act());
+    lv_refr_now(nullptr);
 
     // platform_log("[DEMO] setup done\n");
 }
@@ -127,6 +149,7 @@ void app_setup() {
 void app_loop() {
     if (!g_fallback_mode) {
         app_core_tick();
+        frontend_runtime_tick();
     } else {
         // Даже в fallback режиме нужно обслуживать таймеры LVGL с корректным delta.
         const uint32_t now = platform_tick_ms();
