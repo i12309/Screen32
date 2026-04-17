@@ -1,9 +1,9 @@
-#include "common_app/offline_demo_controller.h"
+﻿#include "common_app/offline_demo_controller.h"
 
-#include "common_app/generated/element_descriptors.generated.h"
-#include "common_app/generated/element_ids.generated.h"
-#include "common_app/generated/page_descriptors.generated.h"
-#include "common_app/generated/page_ids.generated.h"
+#include "element_descriptors.generated.h"
+#include "element_ids.generated.h"
+#include "page_descriptors.generated.h"
+#include "page_ids.generated.h"
 
 namespace demo {
 
@@ -114,7 +114,7 @@ bool OfflineDemoController::configureDefaultDemo() {
 }
 
 bool OfflineDemoController::start(uint32_t startPageId) {
-    // Держим demo-правила самодостаточными: если вызывающий код не задал свой порядок/bindings,
+    // Держим demo-правила самодостаточными: если вызывающий код не задал свой порядок и bindings,
     // контроллер применяет встроенные настройки до первого запуска.
     if (_pageOrderCount == 0) {
         if (!configureDefaultDemo()) {
@@ -291,3 +291,5 @@ bool OfflineDemoController::pickStartPage(uint32_t requestedPageId, uint32_t& ou
 }
 
 } // namespace demo
+
+

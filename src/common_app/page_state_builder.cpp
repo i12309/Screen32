@@ -1,10 +1,10 @@
-#include "common_app/page_state_builder.h"
+﻿#include "common_app/page_state_builder.h"
 
 #include <string.h>
 
 #include <lvgl.h>
 
-#include "common_app/generated/element_descriptors.generated.h"
+#include "element_descriptors.generated.h"
 
 namespace demo {
 
@@ -193,3 +193,5 @@ void frontend_build_element_state(const Screen32BoundElement* trackedElements,
 }
 
 } // namespace demo
+
+

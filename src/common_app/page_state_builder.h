@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include "common_app/generated/ui_object_map.generated.h"
+#include "ui_object_map.generated.h"
 #include "runtime/ScreenClient.h"
 
 namespace demo {
@@ -39,3 +39,5 @@ void frontend_build_element_state(const Screen32BoundElement* trackedElements,
                                   ElementState& outState);
 
 } // namespace demo
+
+

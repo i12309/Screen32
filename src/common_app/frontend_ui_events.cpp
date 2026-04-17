@@ -1,8 +1,8 @@
-#include "common_app/frontend_ui_events.h"
+﻿#include "common_app/frontend_ui_events.h"
 
 #include <lvgl.h>
 
-#include "common_app/generated/element_descriptors.generated.h"
+#include "element_descriptors.generated.h"
 
 namespace demo {
 
@@ -130,3 +130,5 @@ void frontend_ui_events_attach_generated(const Screen32BoundElement* trackedElem
 }
 
 } // namespace demo
+
+

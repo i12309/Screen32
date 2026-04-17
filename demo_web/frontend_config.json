@@ -1,4 +1,4 @@
-{
+﻿{
   "mode": "wasm",
   "transport": {
     "type": "none",
@@ -6,5 +6,6 @@
   },
   "offline_demo": 1,
   "firstOnlinePage": 1,
-  "firstOfflinePage": 2
+  "firstOfflinePage": 1
 }
+

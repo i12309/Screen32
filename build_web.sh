@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Файл build_web.sh
-# Назначение: локальная сборка web-версии через emcmake/cmake.
+# File: build_web.sh
+# Purpose: local web build via emcmake/cmake.
 
 set -euo pipefail
 
@@ -9,8 +9,19 @@ DEMO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 EMSDK_ROOT="${EMSDK_ROOT:-$DEMO_ROOT/../emsdk}"
 BUILD_DIR="$DEMO_ROOT/demo_web/build_web"
 
+SCREENUI_ROOT="$DEMO_ROOT/lib/ScreenUI"
+
+if [ ! -f "$SCREENUI_ROOT/tools/ui_meta_gen/generate_ui_meta.py" ]; then
+    echo "[GEN] ERROR: ScreenUI submodule not found at $SCREENUI_ROOT"
+    echo "[GEN] Run: git submodule update --init --recursive"
+    exit 1
+fi
+
+echo "[GEN] Running ScreenUI UI-meta generator..."
+python "$SCREENUI_ROOT/tools/ui_meta_gen/generate_ui_meta.py"
+
 if [ -f "$EMSDK_ROOT/emsdk_env.sh" ]; then
-    # Подключаем окружение emsdk, если скрипт доступен рядом с проектом.
+    # Activate emsdk if available nearby.
     # shellcheck disable=SC1090
     source "$EMSDK_ROOT/emsdk_env.sh" >/dev/null
 fi
@@ -36,7 +47,7 @@ if [ -x "$NINJA_DIR/ninja.exe" ]; then
     export PATH="$NINJA_DIR:$PATH"
 fi
 
-echo "[WEB] Configuring CMake (LVGL is linked as full CMake library)..."
+echo "[WEB] Configuring CMake..."
 "$CMAKE_CMD" -E make_directory "$BUILD_DIR"
 emcmake cmake \
     -S "$DEMO_ROOT/demo_web" \

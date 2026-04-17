@@ -1,21 +1,24 @@
-#!/usr/bin/env python3
-"""Compatibility wrapper for UI meta generator tool.
-
-Canonical entrypoint:
-    python tools/ui_meta_gen/generate_ui_meta.py
-"""
+﻿#!/usr/bin/env python3
+"""Compatibility wrapper that runs ScreenUI meta generator."""
 
 from __future__ import annotations
 
-import runpy
 from pathlib import Path
+import runpy
+
+
+def resolve_screenui_root(project_root: Path) -> Path:
+    candidates = [project_root / "lib" / "ScreenUI"]
+    for candidate in candidates:
+        if (candidate / "tools" / "ui_meta_gen" / "generate_ui_meta.py").is_file():
+            return candidate
+    raise FileNotFoundError("ScreenUI dependency not found (expected lib/ScreenUI submodule)")
 
 
 def main() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    tool_script = repo_root / "tools" / "ui_meta_gen" / "generate_ui_meta.py"
-    if not tool_script.is_file():
-        raise FileNotFoundError(f"UI meta tool entrypoint not found: {tool_script}")
+    project_root = Path(__file__).resolve().parents[1]
+    screenui_root = resolve_screenui_root(project_root)
+    tool_script = screenui_root / "tools" / "ui_meta_gen" / "generate_ui_meta.py"
     runpy.run_path(str(tool_script), run_name="__main__")
 
 

@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <stddef.h>
 
 #include "common_app/frontend_config.h"
-#include "common_app/generated/ui_object_map.generated.h"
+#include "ui_object_map.generated.h"
 #include "runtime/ScreenClient.h"
 
 namespace demo {
@@ -33,3 +33,5 @@ DeviceInfo frontend_build_device_info(FrontendMode mode);
 void frontend_handle_service_request(const Envelope& env, const FrontendServiceResponderContext& ctx);
 
 } // namespace demo
+
+

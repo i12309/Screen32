@@ -1,4 +1,4 @@
-#include "common_app/frontend_runtime.h"
+﻿#include "common_app/frontend_runtime.h"
 
 #include <memory>
 #include <stdio.h>
@@ -9,8 +9,8 @@
 #include "common_app/frontend_platform.h"
 #include "common_app/frontend_service_responder.h"
 #include "common_app/frontend_ui_events.h"
-#include "common_app/generated/page_descriptors.generated.h"
-#include "common_app/generated/ui_object_map.generated.h"
+#include "page_descriptors.generated.h"
+#include "ui_object_map.generated.h"
 #include "common_app/offline_demo_controller.h"
 #include "lvgl_eez/EezLvglAdapter.h"
 #include "lvgl_eez/UiObjectMap.h"
@@ -42,7 +42,7 @@ public:
 };
 
 // RuntimeState принадлежит слою оркестрации frontend_runtime и связывает
-// все части, зависящие от режима (transport/client/adapter/offline-контроллер).
+// все части, зависящие от режима: transport, client, adapter и offline-контроллер.
 struct RuntimeState {
     FrontendConfig config = frontend_default_config();
     bool initialized = false;
@@ -382,3 +382,5 @@ uint32_t frontend_runtime_current_page() {
 }
 
 } // namespace demo
+
+

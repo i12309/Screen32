@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include "common_app/generated/ui_object_map.generated.h"
+#include "ui_object_map.generated.h"
 
 namespace demo {
 
@@ -32,3 +32,5 @@ void frontend_ui_events_attach_generated(const Screen32BoundElement* trackedElem
                                          const FrontendUiEventSink& sink);
 
 } // namespace demo
+
+
