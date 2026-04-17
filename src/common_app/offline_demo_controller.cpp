@@ -86,29 +86,29 @@ bool OfflineDemoController::bindPageTapToGoto(uint32_t sourcePageId, uint32_t ta
 
 bool OfflineDemoController::configureDefaultDemo() {
     const uint32_t pageOrder[] = {
-        SCREEN32_PAGE_ID_LOAD,
-        SCREEN32_PAGE_ID_MAIN_MENU,
-        SCREEN32_PAGE_ID_DEF_PAGE1,
-        SCREEN32_PAGE_ID_DEF_PAGE2,
-        SCREEN32_PAGE_ID_DEF_PAGE3,
-        SCREEN32_PAGE_ID_DEF_PAGE4,
+        scr_LOAD,
+        scr_MAIN_MENU,
+        scr_DEF_PAGE1,
+        scr_DEF_PAGE2,
+        scr_DEF_PAGE3,
+        scr_DEF_PAGE4,
     };
     if (!setPageOrder(pageOrder, sizeof(pageOrder) / sizeof(pageOrder[0]))) {
         return false;
     }
 
     bool ok = true;
-    ok = bindPageTapToNext(SCREEN32_PAGE_ID_LOAD) && ok;
-    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_B_MAIN_TASK, SCREEN32_PAGE_ID_DEF_PAGE1) && ok;
-    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_2, SCREEN32_PAGE_ID_DEF_PAGE2) && ok;
-    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_5, SCREEN32_PAGE_ID_DEF_PAGE3) && ok;
-    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_9, SCREEN32_PAGE_ID_DEF_PAGE4) && ok;
-    ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_12, SCREEN32_PAGE_ID_MAIN_MENU) && ok;
+    ok = bindPageTapToNext(scr_LOAD) && ok;
+    ok = bindButtonToGoto(btn_MAIN_TASK, scr_DEF_PAGE1) && ok;
+    ok = bindButtonToGoto(btn_NEXT_2, scr_DEF_PAGE2) && ok;
+    ok = bindButtonToGoto(btn_NEXT_5, scr_DEF_PAGE3) && ok;
+    ok = bindButtonToGoto(btn_NEXT_9, scr_DEF_PAGE4) && ok;
+    ok = bindButtonToGoto(btn_NEXT_12, scr_MAIN_MENU) && ok;
 
-    ok = bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK) && ok;
-    ok = bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_1) && ok;
-    ok = bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_3) && ok;
-    ok = bindButtonToPrev(SCREEN32_ELEMENT_ID_BACK_4) && ok;
+    ok = bindButtonToPrev(btn_BACK) && ok;
+    ok = bindButtonToPrev(btn_BACK_1) && ok;
+    ok = bindButtonToPrev(btn_BACK_3) && ok;
+    ok = bindButtonToPrev(btn_BACK_4) && ok;
 
     return ok;
 }

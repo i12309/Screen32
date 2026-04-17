@@ -81,15 +81,15 @@ uint32_t resolve_start_page(uint32_t requestedPage, uint32_t fallbackPage) {
     if (is_valid_page_id(fallbackPage)) {
         return fallbackPage;
     }
-    return SCREEN32_PAGE_ID_LOAD;
+    return scr_LOAD;
 }
 
 uint32_t resolve_online_start_page(const FrontendConfig& config) {
-    return resolve_start_page(config.firstOnlinePage, SCREEN32_PAGE_ID_LOAD);
+    return resolve_start_page(config.firstOnlinePage, scr_LOAD);
 }
 
 uint32_t resolve_offline_start_page(const FrontendConfig& config) {
-    return resolve_start_page(config.firstOfflinePage, SCREEN32_PAGE_ID_LOAD);
+    return resolve_start_page(config.firstOfflinePage, scr_LOAD);
 }
 
 uint32_t normalize_color(uint32_t value) {

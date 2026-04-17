@@ -33,7 +33,7 @@ git submodule update --init --recursive
 
 ## Offline demo
 
-Стартовая offline-страница по умолчанию — `SCREEN32_PAGE_ID_LOAD` с id `1`.
+Стартовая offline-страница по умолчанию — `scr_LOAD` с id `1`.
 Это значение задано в `demo_web/frontend_config.json` через:
 
 ```json
