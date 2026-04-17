@@ -166,7 +166,7 @@ scripts\serve_web.bat
 
 - `scripts\env_web.bat`: активирует emsdk и добавляет `cmake`
 - `scripts\build_web.bat`: поднимает окружение и запускает `pio run -t build_web`
-- `scripts\serve_web.bat`: запускает локальный web-сервер для `demo_web/build`
+- `scripts\serve_web.bat`: запускает локальный web-сервер для `demo_web/build_web`
 
 Рекомендуемая команда:
 

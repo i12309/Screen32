@@ -7,7 +7,7 @@ set -euo pipefail
 
 DEMO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 EMSDK_ROOT="${EMSDK_ROOT:-$DEMO_ROOT/../emsdk}"
-BUILD_DIR="$DEMO_ROOT/demo_web/build"
+BUILD_DIR="$DEMO_ROOT/demo_web/build_web"
 
 if [ -f "$EMSDK_ROOT/emsdk_env.sh" ]; then
     # Подключаем окружение emsdk, если скрипт доступен рядом с проектом.
@@ -48,5 +48,5 @@ emcmake cmake \
 echo "[WEB] Building..."
 "$CMAKE_CMD" --build "$BUILD_DIR" --parallel
 
-echo "[WEB] Build successful! Output in demo_web/build/"
-echo "[WEB] Open demo_web/build/demo_web.html in browser"
+echo "[WEB] Build successful! Output in demo_web/build_web/"
+echo "[WEB] Open demo_web/build_web/demo_web.html in browser"

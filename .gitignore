@@ -13,6 +13,7 @@ compile_commands.json
 __pycache__/
 *.pyc
 
+demo_web/build_web/
 demo_web/build/
 demo_web/CMakeFiles/
 demo_web/CMakeCache.txt

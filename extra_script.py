@@ -9,6 +9,8 @@ import subprocess
 import shutil
 import sys
 
+WEB_BUILD_DIR_NAME = "build_web"
+
 
 def run_ui_meta_generator():
     project_dir = env.subst("$PROJECT_DIR")
@@ -41,7 +43,7 @@ def build_web_action(source, target, env):
     # Точка входа кастомной цели PlatformIO.
     # Готовит команды emcmake/cmake и запускает сборку web-артефактов.
     demo_root = env.subst("$PROJECT_DIR")
-    build_dir = os.path.join(demo_root, "demo_web", "build")
+    build_dir = os.path.join(demo_root, "demo_web", WEB_BUILD_DIR_NAME)
     source_dir = os.path.join(demo_root, "demo_web")
     lv_conf_path = os.path.join(source_dir, "lv_conf.h")
     emsdk_root = os.environ.get("EMSDK", os.path.normpath(os.path.join(demo_root, "..", "emsdk")))
@@ -108,8 +110,8 @@ def build_web_action(source, target, env):
         print("[WEB] build failed")
         return 1
 
-    print("\n[WEB] Build successful! Output in demo_web/build/")
-    print("[WEB] Serve with: python -m http.server 8080 --directory demo_web/build")
+    print(f"\n[WEB] Build successful! Output in demo_web/{WEB_BUILD_DIR_NAME}/")
+    print(f"[WEB] Serve with: python -m http.server 8080 --directory demo_web/{WEB_BUILD_DIR_NAME}")
     return 0
 
 # Регистрируем пользовательскую цель в SCons/PlatformIO.

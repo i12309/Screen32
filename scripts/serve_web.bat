@@ -3,7 +3,7 @@ setlocal
 
 set "_SCRIPT_DIR=%~dp0"
 for %%I in ("%_SCRIPT_DIR%..") do set "_PROJECT_ROOT=%%~fI"
-set "_WEB_DIR=%_PROJECT_ROOT%\demo_web\build"
+set "_WEB_DIR=%_PROJECT_ROOT%\demo_web\build_web"
 
 if not exist "%_WEB_DIR%" (
     echo [serve_web] ERROR: build output not found:
@@ -17,13 +17,6 @@ if not exist "%_WEB_DIR%\demo_web.html" (
     echo            Run scripts\build_web.bat first.
     exit /b 1
 )
-if not exist "%_WEB_DIR%\demo_web.js" (
-    echo [serve_web] ERROR: demo_web.js not found:
-    echo            %_WEB_DIR%\demo_web.js
-    echo            Rebuild: scripts\build_web.bat
-    exit /b 1
-)
-
 pushd "%_PROJECT_ROOT%"
 if errorlevel 1 (
     echo [serve_web] ERROR: cannot enter project root.
@@ -34,18 +27,23 @@ where py >nul 2>&1
 if not errorlevel 1 (
     echo [serve_web] Serving on http://localhost:8080/demo_web.html
     py -3 -m http.server 8080 --directory "%_WEB_DIR%"
-    set "_RC=%ERRORLEVEL%"
-    popd
-    exit /b %_RC%
+    if not errorlevel 1 (
+        popd
+        exit /b 0
+    )
+    echo [serve_web] WARNING: py launcher failed, trying python...
 )
 
 where python >nul 2>&1
 if not errorlevel 1 (
     echo [serve_web] Serving on http://localhost:8080/demo_web.html
     python -m http.server 8080 --directory "%_WEB_DIR%"
-    set "_RC=%ERRORLEVEL%"
+    if errorlevel 1 (
+        popd
+        exit /b 1
+    )
     popd
-    exit /b %_RC%
+    exit /b 0
 )
 
 popd

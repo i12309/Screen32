@@ -116,6 +116,7 @@ if(EMSCRIPTEN)
     target_link_options(demo_web PRIVATE
         -O2
         -sUSE_SDL=2
+        -sSINGLE_FILE=1
         -lwebsocket.js
         -sALLOW_MEMORY_GROWTH=1
         -sEXPORTED_RUNTIME_METHODS=ccall,cwrap
