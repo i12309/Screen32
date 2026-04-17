@@ -33,7 +33,7 @@ struct FrontendConfig {
     // Первая страница для показа в online-режиме до команд backend.
     uint32_t firstOnlinePage = 1;
     // Первая страница для показа в offline demo-режиме.
-    uint32_t firstOfflinePage = 2;
+    uint32_t firstOfflinePage = 1;
 };
 
 // Возвращает конфиг frontend по умолчанию для текущей платформы.

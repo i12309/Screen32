@@ -21,6 +21,7 @@ namespace demo {
 struct FrontendUiEventSink {
     void* userData = nullptr;
     void (*onButtonEvent)(void* userData, uint32_t elementId, uint32_t pageId) = nullptr;
+    void (*onObjectClick)(void* userData, uint32_t elementId, uint32_t pageId) = nullptr;
     void (*onInputEventInt)(void* userData, uint32_t elementId, uint32_t pageId, int32_t value) = nullptr;
     void (*onInputEventText)(void* userData, uint32_t elementId, uint32_t pageId, const char* value) = nullptr;
 };

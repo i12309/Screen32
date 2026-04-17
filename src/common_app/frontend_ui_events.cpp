@@ -62,9 +62,13 @@ void on_ui_event_cb(lv_event_t* e) {
     const lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
 
-    if (code == LV_EVENT_CLICKED && descriptor->emits_button_event) {
-        if (g_sink.onButtonEvent != nullptr) {
-            g_sink.onButtonEvent(g_sink.userData, elementId, pageId);
+    if (code == LV_EVENT_CLICKED) {
+        if (descriptor->emits_button_event) {
+            if (g_sink.onButtonEvent != nullptr) {
+                g_sink.onButtonEvent(g_sink.userData, elementId, pageId);
+            }
+        } else if (g_sink.onObjectClick != nullptr) {
+            g_sink.onObjectClick(g_sink.userData, elementId, pageId);
         }
         return;
     }
@@ -103,7 +107,11 @@ void frontend_ui_events_attach_generated(const Screen32BoundElement* trackedElem
             continue;
         }
 
-        if (tracked.descriptor->emits_button_event) {
+        const bool needsObjectClicks = g_sink.onObjectClick != nullptr;
+        if (tracked.descriptor->emits_button_event || needsObjectClicks) {
+            if (!tracked.descriptor->emits_button_event && needsObjectClicks) {
+                lv_obj_add_flag(tracked.obj, LV_OBJ_FLAG_CLICKABLE);
+            }
             lv_obj_add_event_cb(
                 tracked.obj,
                 on_ui_event_cb,

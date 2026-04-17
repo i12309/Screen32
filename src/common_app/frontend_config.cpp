@@ -155,7 +155,7 @@ FrontendConfig frontend_default_config() {
 #endif
     cfg.offlineDemo = true;
     cfg.firstOnlinePage = 1;
-    cfg.firstOfflinePage = 2;
+    cfg.firstOfflinePage = 1;
     copy_string(cfg.transport.url, sizeof(cfg.transport.url), "ws://127.0.0.1:81");
     cfg.transport.baud = 115200;
     cfg.transport.rxPin = 16;

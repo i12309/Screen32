@@ -27,6 +27,7 @@ void OfflineDemoController::init(screenlib::adapter::EezLvglAdapter* adapter) {
 void OfflineDemoController::reset() {
     _pageOrderCount = 0;
     _bindingCount = 0;
+    _pageTapBindingCount = 0;
     _currentPageId = 0;
 }
 
@@ -68,8 +69,24 @@ bool OfflineDemoController::bindButtonToGoto(uint32_t elementId, uint32_t target
     return setBinding(elementId, BindingActionType::Goto, targetPageId);
 }
 
+bool OfflineDemoController::bindPageTapToNext(uint32_t sourcePageId) {
+    return setPageTapBinding(sourcePageId, BindingActionType::Next, 0);
+}
+
+bool OfflineDemoController::bindPageTapToPrev(uint32_t sourcePageId) {
+    return setPageTapBinding(sourcePageId, BindingActionType::Prev, 0);
+}
+
+bool OfflineDemoController::bindPageTapToGoto(uint32_t sourcePageId, uint32_t targetPageId) {
+    if (!is_known_page_id(targetPageId)) {
+        return false;
+    }
+    return setPageTapBinding(sourcePageId, BindingActionType::Goto, targetPageId);
+}
+
 bool OfflineDemoController::configureDefaultDemo() {
     const uint32_t pageOrder[] = {
+        SCREEN32_PAGE_ID_LOAD,
         SCREEN32_PAGE_ID_MAIN_MENU,
         SCREEN32_PAGE_ID_DEF_PAGE1,
         SCREEN32_PAGE_ID_DEF_PAGE2,
@@ -81,6 +98,7 @@ bool OfflineDemoController::configureDefaultDemo() {
     }
 
     bool ok = true;
+    ok = bindPageTapToNext(SCREEN32_PAGE_ID_LOAD) && ok;
     ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_B_MAIN_TASK, SCREEN32_PAGE_ID_DEF_PAGE1) && ok;
     ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_2, SCREEN32_PAGE_ID_DEF_PAGE2) && ok;
     ok = bindButtonToGoto(SCREEN32_ELEMENT_ID_NEXT_5, SCREEN32_PAGE_ID_DEF_PAGE3) && ok;
@@ -112,32 +130,19 @@ bool OfflineDemoController::start(uint32_t startPageId) {
 }
 
 bool OfflineDemoController::onButtonEvent(uint32_t elementId, uint32_t sourcePageId) {
-    (void)sourcePageId;
     const Binding* binding = findBinding(elementId);
     if (binding == nullptr) {
         return false;
     }
+    return applyAction(binding->action, binding->targetPageId, sourcePageId);
+}
 
-    if (_pageOrderCount == 0) {
+bool OfflineDemoController::onObjectClick(uint32_t sourcePageId) {
+    const PageTapBinding* binding = findPageTapBinding(sourcePageId);
+    if (binding == nullptr) {
         return false;
     }
-
-    int currentIndex = findPageIndex(_currentPageId);
-    if (currentIndex < 0) {
-        currentIndex = 0;
-    }
-
-    if (binding->action == BindingActionType::Goto) {
-        return showPage(binding->targetPageId);
-    }
-
-    if (binding->action == BindingActionType::Next) {
-        const size_t nextIndex = (static_cast<size_t>(currentIndex) + 1) % _pageOrderCount;
-        return showPage(_pageOrder[nextIndex]);
-    }
-
-    const size_t prevIndex = (static_cast<size_t>(currentIndex) + _pageOrderCount - 1) % _pageOrderCount;
-    return showPage(_pageOrder[prevIndex]);
+    return applyAction(binding->action, binding->targetPageId, sourcePageId);
 }
 
 bool OfflineDemoController::onInputEventInt(uint32_t elementId, uint32_t sourcePageId, int32_t value) {
@@ -185,6 +190,70 @@ const OfflineDemoController::Binding* OfflineDemoController::findBinding(uint32_
         }
     }
     return nullptr;
+}
+
+bool OfflineDemoController::setPageTapBinding(uint32_t sourcePageId,
+                                              BindingActionType action,
+                                              uint32_t targetPageId) {
+    if (!is_known_page_id(sourcePageId)) {
+        return false;
+    }
+
+    for (size_t i = 0; i < _pageTapBindingCount; ++i) {
+        if (_pageTapBindings[i].sourcePageId == sourcePageId) {
+            _pageTapBindings[i].action = action;
+            _pageTapBindings[i].targetPageId = targetPageId;
+            return true;
+        }
+    }
+
+    if (_pageTapBindingCount >= kMaxPageTapBindings) {
+        return false;
+    }
+
+    _pageTapBindings[_pageTapBindingCount].sourcePageId = sourcePageId;
+    _pageTapBindings[_pageTapBindingCount].action = action;
+    _pageTapBindings[_pageTapBindingCount].targetPageId = targetPageId;
+    _pageTapBindingCount++;
+    return true;
+}
+
+const OfflineDemoController::PageTapBinding* OfflineDemoController::findPageTapBinding(
+    uint32_t sourcePageId) const {
+    for (size_t i = 0; i < _pageTapBindingCount; ++i) {
+        if (_pageTapBindings[i].sourcePageId == sourcePageId) {
+            return &_pageTapBindings[i];
+        }
+    }
+    return nullptr;
+}
+
+bool OfflineDemoController::applyAction(BindingActionType action,
+                                        uint32_t targetPageId,
+                                        uint32_t sourcePageId) {
+    if (_pageOrderCount == 0) {
+        return false;
+    }
+
+    if (action == BindingActionType::Goto) {
+        return showPage(targetPageId);
+    }
+
+    int currentIndex = findPageIndex(_currentPageId);
+    if (currentIndex < 0) {
+        currentIndex = findPageIndex(sourcePageId);
+    }
+    if (currentIndex < 0) {
+        currentIndex = 0;
+    }
+
+    if (action == BindingActionType::Next) {
+        const size_t nextIndex = (static_cast<size_t>(currentIndex) + 1) % _pageOrderCount;
+        return showPage(_pageOrder[nextIndex]);
+    }
+
+    const size_t prevIndex = (static_cast<size_t>(currentIndex) + _pageOrderCount - 1) % _pageOrderCount;
+    return showPage(_pageOrder[prevIndex]);
 }
 
 bool OfflineDemoController::showPage(uint32_t pageId) {

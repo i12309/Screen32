@@ -89,7 +89,7 @@ uint32_t resolve_online_start_page(const FrontendConfig& config) {
 }
 
 uint32_t resolve_offline_start_page(const FrontendConfig& config) {
-    return resolve_start_page(config.firstOfflinePage, SCREEN32_PAGE_ID_MAIN_MENU);
+    return resolve_start_page(config.firstOfflinePage, SCREEN32_PAGE_ID_LOAD);
 }
 
 uint32_t normalize_color(uint32_t value) {
@@ -230,6 +230,18 @@ void on_ui_button_event(void* userData, uint32_t elementId, uint32_t pageId) {
     state->adapter.emitButtonEvent(elementId, pageId);
 }
 
+void on_ui_object_click(void* userData, uint32_t elementId, uint32_t pageId) {
+    RuntimeState* state = static_cast<RuntimeState*>(userData);
+    (void)elementId;
+    if (state == nullptr || !state->initialized) {
+        return;
+    }
+
+    if (state->offlineDemo) {
+        state->offlineController.onObjectClick(pageId);
+    }
+}
+
 void on_ui_input_event_int(void* userData, uint32_t elementId, uint32_t pageId, int32_t value) {
     RuntimeState* state = static_cast<RuntimeState*>(userData);
     if (state == nullptr || !state->initialized) {
@@ -305,13 +317,6 @@ bool frontend_runtime_init(const FrontendConfig& config) {
         printf("[frontend_runtime] warning: generated UI map has unbound entries\n");
     }
 
-    FrontendUiEventSink sink{};
-    sink.userData = &g_state;
-    sink.onButtonEvent = &on_ui_button_event;
-    sink.onInputEventInt = &on_ui_input_event_int;
-    sink.onInputEventText = &on_ui_input_event_text;
-    frontend_ui_events_attach_generated(g_state.tracked, g_state.trackedCount, sink);
-
     if (!g_state.offlineDemo) {
         g_state.transport = platform_create_transport(config);
         if (!g_state.transport) {
@@ -319,6 +324,14 @@ bool frontend_runtime_init(const FrontendConfig& config) {
             g_state.online = false;
         }
     }
+
+    FrontendUiEventSink sink{};
+    sink.userData = &g_state;
+    sink.onButtonEvent = &on_ui_button_event;
+    sink.onObjectClick = g_state.offlineDemo ? &on_ui_object_click : nullptr;
+    sink.onInputEventInt = &on_ui_input_event_int;
+    sink.onInputEventText = &on_ui_input_event_text;
+    frontend_ui_events_attach_generated(g_state.tracked, g_state.trackedCount, sink);
 
     if (g_state.online) {
         ITransport* transport = g_state.transport ? g_state.transport.get() : static_cast<ITransport*>(&g_state.nullTransport);
