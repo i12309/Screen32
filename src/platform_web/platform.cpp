@@ -310,7 +310,7 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
         "  },\n"
         "  \"offline_demo\": 1,\n"
         "  \"firstOnlinePage\": 1,\n"
-        "  \"firstOfflinePage\": 2\n"
+        "  \"firstOfflinePage\": 1\n"
         "}\n";
 
     strncpy(outJson, fallback, outSize - 1);
