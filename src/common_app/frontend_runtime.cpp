@@ -376,7 +376,7 @@ bool frontend_runtime_init(const FrontendConfig& config) {
         g_state.client->sendHello(frontend_build_device_info(g_state.config.mode));
     } else {
         g_state.client.reset();
-        g_state.offlineController.init(&g_state.adapter);
+        g_state.offlineController.init(&g_state.adapter, g_state.tracked, g_state.trackedCount);
         const bool started = g_state.offlineController.start(resolve_offline_start_page(config));
         if (!started) {
             g_state.adapter.showPage(resolve_offline_start_page(frontend_default_config()));

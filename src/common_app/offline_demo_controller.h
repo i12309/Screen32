@@ -7,6 +7,8 @@
 
 namespace demo {
 
+struct Screen32BoundElement;
+
 /*
  * Роль файла:
  * - Содержит все локальное поведение offline demo: порядок страниц, привязки и правила next/prev/goto.
@@ -23,7 +25,9 @@ public:
     OfflineDemoController() = default;
 
     // Инициализирует контроллер и адаптер для локального переключения страниц.
-    void init(screenlib::adapter::EezLvglAdapter* adapter);
+    void init(screenlib::adapter::EezLvglAdapter* adapter,
+              const Screen32BoundElement* trackedElements,
+              size_t trackedCount);
     // Сбрасывает текущую страницу, порядок страниц и привязки.
     void reset();
 
@@ -75,11 +79,13 @@ private:
         uint32_t targetPageId = 0;
     };
 
-    static constexpr size_t kMaxPages = 16;
-    static constexpr size_t kMaxBindings = 64;
-    static constexpr size_t kMaxPageTapBindings = 16;
+    static constexpr size_t kMaxPages = 64;
+    static constexpr size_t kMaxBindings = 128;
+    static constexpr size_t kMaxPageTapBindings = 64;
 
     screenlib::adapter::EezLvglAdapter* _adapter = nullptr;
+    const Screen32BoundElement* _trackedElements = nullptr;
+    size_t _trackedCount = 0;
     uint32_t _pageOrder[kMaxPages] = {};
     size_t _pageOrderCount = 0;
     Binding _bindings[kMaxBindings] = {};
@@ -96,6 +102,8 @@ private:
     bool showPage(uint32_t pageId);
     int findPageIndex(uint32_t pageId) const;
     bool pickStartPage(uint32_t requestedPageId, uint32_t& outPageId) const;
+    const Screen32BoundElement* findTrackedElement(uint32_t elementId) const;
+    bool isButtonInsideBar(uint32_t buttonElementId, const uint32_t* barElementIds, size_t barCount) const;
 };
 
 } // namespace demo
