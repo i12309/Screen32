@@ -87,8 +87,8 @@ bool OfflineDemoController::bindPageTapToGoto(uint32_t sourcePageId, uint32_t ta
 bool OfflineDemoController::configureDefaultDemo() {
     const uint32_t pageOrder[] = {
         scr_LOAD,
-        scr_MAIN_MENU,
-        scr_DEF_PAGE1,
+        scr_MAIN,
+        scr_DEF_PAGE,
         scr_DEF_PAGE2,
         scr_DEF_PAGE3,
         scr_DEF_PAGE4,
@@ -99,14 +99,13 @@ bool OfflineDemoController::configureDefaultDemo() {
 
     bool ok = true;
     ok = bindPageTapToNext(scr_LOAD) && ok;
-    ok = bindButtonToGoto(btn_MAIN_TASK, scr_DEF_PAGE1) && ok;
+    ok = bindButtonToGoto(btn_MAIN_TASK, scr_DEF_PAGE) && ok;
     ok = bindButtonToGoto(btn_NEXT_2, scr_DEF_PAGE2) && ok;
-    ok = bindButtonToGoto(btn_NEXT_5, scr_DEF_PAGE3) && ok;
-    ok = bindButtonToGoto(btn_NEXT_9, scr_DEF_PAGE4) && ok;
-    ok = bindButtonToGoto(btn_NEXT_12, scr_MAIN_MENU) && ok;
+    ok = bindButtonToGoto(btn_NEXT_13, scr_DEF_PAGE3) && ok;
+    ok = bindButtonToGoto(btn_NEXT_7, scr_DEF_PAGE4) && ok;
+    ok = bindButtonToGoto(btn_NEXT_10, scr_MAIN) && ok;
 
-    ok = bindButtonToPrev(btn_BACK) && ok;
-    ok = bindButtonToPrev(btn_BACK_1) && ok;
+    ok = bindButtonToPrev(btn_BACK_5) && ok;
     ok = bindButtonToPrev(btn_BACK_3) && ok;
     ok = bindButtonToPrev(btn_BACK_4) && ok;
 

@@ -142,6 +142,20 @@ bool hook_set_text(void* userData, void* uiObject, const char* text) {
         return false;
     }
 
+#if LV_USE_DROPDOWN
+    if (lv_obj_check_type(obj, &lv_dropdown_class)) {
+        lv_dropdown_set_options(obj, text != nullptr ? text : "");
+        return true;
+    }
+#endif
+
+#if LV_USE_CHECKBOX
+    if (lv_obj_check_type(obj, &lv_checkbox_class)) {
+        lv_checkbox_set_text(obj, text != nullptr ? text : "");
+        return true;
+    }
+#endif
+
     lv_obj_t* label = nullptr;
     if (!get_label_for_object(obj, label)) {
         return false;
@@ -180,6 +194,24 @@ bool hook_set_value(void* userData, void* uiObject, int32_t value) {
 #if LV_USE_ARC
     if (lv_obj_check_type(obj, &lv_arc_class)) {
         lv_arc_set_value(obj, value);
+        return true;
+    }
+#endif
+
+#if LV_USE_DROPDOWN
+    if (lv_obj_check_type(obj, &lv_dropdown_class)) {
+        lv_dropdown_set_selected(obj, value < 0 ? 0U : static_cast<uint32_t>(value));
+        return true;
+    }
+#endif
+
+#if LV_USE_CHECKBOX
+    if (lv_obj_check_type(obj, &lv_checkbox_class)) {
+        if (value != 0) {
+            lv_obj_add_state(obj, LV_STATE_CHECKED);
+        } else {
+            lv_obj_clear_state(obj, LV_STATE_CHECKED);
+        }
         return true;
     }
 #endif
