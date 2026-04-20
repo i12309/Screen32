@@ -132,7 +132,7 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
         "    \"rxPin\": 16,\n"
         "    \"txPin\": 17\n"
         "  },\n"
-        "  \"offline_demo\": 1,\n"
+        "  \"offline_demo\": 0,\n"
         "  \"firstOnlinePage\": 1,\n"
         "  \"firstOfflinePage\": 1\n"
         "}\n";

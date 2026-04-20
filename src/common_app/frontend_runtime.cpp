@@ -92,6 +92,49 @@ uint32_t resolve_offline_start_page(const FrontendConfig& config) {
     return resolve_start_page(config.firstOfflinePage, scr_LOAD);
 }
 
+const char* envelope_payload_name(pb_size_t whichPayload) {
+    switch (whichPayload) {
+        case Envelope_show_page_tag:
+            return "show_page";
+        case Envelope_set_text_tag:
+            return "set_text";
+        case Envelope_set_color_tag:
+            return "set_color";
+        case Envelope_set_visible_tag:
+            return "set_visible";
+        case Envelope_set_value_tag:
+            return "set_value";
+        case Envelope_set_batch_tag:
+            return "set_batch";
+        case Envelope_button_event_tag:
+            return "button_event";
+        case Envelope_input_event_tag:
+            return "input_event";
+        case Envelope_heartbeat_tag:
+            return "heartbeat";
+        case Envelope_hello_tag:
+            return "hello";
+        case Envelope_request_device_info_tag:
+            return "request_device_info";
+        case Envelope_device_info_tag:
+            return "device_info";
+        case Envelope_request_current_page_tag:
+            return "request_current_page";
+        case Envelope_current_page_tag:
+            return "current_page";
+        case Envelope_request_page_state_tag:
+            return "request_page_state";
+        case Envelope_page_state_tag:
+            return "page_state";
+        case Envelope_request_element_state_tag:
+            return "request_element_state";
+        case Envelope_element_state_tag:
+            return "element_state";
+        default:
+            return "unknown";
+    }
+}
+
 uint32_t normalize_color(uint32_t value) {
     if (value <= 0xFFFF) {
         const uint8_t r = static_cast<uint8_t>(((value >> 11) & 0x1F) * 255 / 31);
@@ -259,6 +302,9 @@ void on_ui_button_event(void* userData, uint32_t elementId, uint32_t pageId) {
         return;
     }
 
+    printf("[frontend_runtime] tx button_event page=%lu element=%lu\n",
+           static_cast<unsigned long>(pageId),
+           static_cast<unsigned long>(elementId));
     state->adapter.emitButtonEvent(elementId, pageId);
 }
 
@@ -285,6 +331,10 @@ void on_ui_input_event_int(void* userData, uint32_t elementId, uint32_t pageId, 
         return;
     }
 
+    printf("[frontend_runtime] tx input_event[int] page=%lu element=%lu value=%ld\n",
+           static_cast<unsigned long>(pageId),
+           static_cast<unsigned long>(elementId),
+           static_cast<long>(value));
     state->adapter.emitInputEventInt(elementId, pageId, value);
 }
 
@@ -299,6 +349,10 @@ void on_ui_input_event_text(void* userData, uint32_t elementId, uint32_t pageId,
         return;
     }
 
+    printf("[frontend_runtime] tx input_event[text] page=%lu element=%lu value=\"%s\"\n",
+           static_cast<unsigned long>(pageId),
+           static_cast<unsigned long>(elementId),
+           value != nullptr ? value : "");
     state->adapter.emitInputEventString(elementId, pageId, value != nullptr ? value : "");
 }
 
@@ -309,6 +363,42 @@ void on_client_event(const Envelope& env, screenlib::client::ScreenClient::Event
     }
     if (direction != screenlib::client::ScreenClient::EventDirection::Incoming) {
         return;
+    }
+
+    switch (env.which_payload) {
+        case Envelope_show_page_tag:
+            printf("[frontend_runtime] rx show_page page=%lu\n",
+                   static_cast<unsigned long>(env.payload.show_page.page_id));
+            break;
+        case Envelope_set_text_tag:
+            printf("[frontend_runtime] rx set_text element=%lu text=\"%s\"\n",
+                   static_cast<unsigned long>(env.payload.set_text.element_id),
+                   env.payload.set_text.text);
+            break;
+        case Envelope_set_value_tag:
+            printf("[frontend_runtime] rx set_value element=%lu value=%ld\n",
+                   static_cast<unsigned long>(env.payload.set_value.element_id),
+                   static_cast<long>(env.payload.set_value.value));
+            break;
+        case Envelope_set_visible_tag:
+            printf("[frontend_runtime] rx set_visible element=%lu visible=%d\n",
+                   static_cast<unsigned long>(env.payload.set_visible.element_id),
+                   env.payload.set_visible.visible ? 1 : 0);
+            break;
+        case Envelope_set_batch_tag:
+            printf("[frontend_runtime] rx set_batch texts=%u colors=%u visibles=%u values=%u\n",
+                   static_cast<unsigned>(env.payload.set_batch.texts_count),
+                   static_cast<unsigned>(env.payload.set_batch.colors_count),
+                   static_cast<unsigned>(env.payload.set_batch.visibles_count),
+                   static_cast<unsigned>(env.payload.set_batch.values_count));
+            break;
+        case Envelope_heartbeat_tag:
+            break;
+        default:
+            printf("[frontend_runtime] rx %s (%u)\n",
+                   envelope_payload_name(env.which_payload),
+                   static_cast<unsigned>(env.which_payload));
+            break;
     }
 
     FrontendServiceResponderContext responder{};
@@ -330,6 +420,12 @@ bool frontend_runtime_init(const FrontendConfig& config) {
     g_state.offlineDemo = config.offlineDemo || config.transport.type == FrontendTransportType::None;
     g_state.online = !g_state.offlineDemo;
     g_state.lastHeartbeatMs = platform_tick_ms();
+    printf("[frontend_runtime] init mode=%s transport=%s offline_demo=%d online_page=%lu offline_page=%lu\n",
+           frontend_mode_name(config.mode),
+           frontend_transport_name(config.transport.type),
+           g_state.offlineDemo ? 1 : 0,
+           static_cast<unsigned long>(config.firstOnlinePage),
+           static_cast<unsigned long>(config.firstOfflinePage));
 
     screenlib::adapter::EezLvglHooks hooks{};
     hooks.showPage = &hook_show_page;
@@ -348,10 +444,12 @@ bool frontend_runtime_init(const FrontendConfig& config) {
     if (!mapBound) {
         printf("[frontend_runtime] warning: generated UI map has unbound entries\n");
     }
+    printf("[frontend_runtime] tracked elements: %u\n", static_cast<unsigned>(g_state.trackedCount));
 
     if (!g_state.offlineDemo) {
         g_state.transport = platform_create_transport(config);
         if (!g_state.transport) {
+            printf("[frontend_runtime] transport init failed, fallback to offline demo\n");
             g_state.offlineDemo = true;
             g_state.online = false;
         }
@@ -366,20 +464,31 @@ bool frontend_runtime_init(const FrontendConfig& config) {
     frontend_ui_events_attach_generated(g_state.tracked, g_state.trackedCount, sink);
 
     if (g_state.online) {
+        printf("[frontend_runtime] online mode enabled\n");
         ITransport* transport = g_state.transport ? g_state.transport.get() : static_cast<ITransport*>(&g_state.nullTransport);
         g_state.client.reset(new screenlib::client::ScreenClient(*transport));
         g_state.client->setUiAdapter(&g_state.adapter);
         g_state.client->setEventHandler(&on_client_event, &g_state);
         g_state.client->init();
 
-        g_state.adapter.showPage(resolve_online_start_page(config));
+        const uint32_t startPage = resolve_online_start_page(config);
+        g_state.adapter.showPage(startPage);
+        printf("[frontend_runtime] online start page=%lu\n", static_cast<unsigned long>(startPage));
         g_state.client->sendHello(frontend_build_device_info(g_state.config.mode));
+        printf("[frontend_runtime] hello sent\n");
     } else {
+        printf("[frontend_runtime] offline demo mode enabled\n");
         g_state.client.reset();
         g_state.offlineController.init(&g_state.adapter, g_state.tracked, g_state.trackedCount);
-        const bool started = g_state.offlineController.start(resolve_offline_start_page(config));
+        const uint32_t startPage = resolve_offline_start_page(config);
+        const bool started = g_state.offlineController.start(startPage);
         if (!started) {
-            g_state.adapter.showPage(resolve_offline_start_page(frontend_default_config()));
+            const uint32_t fallbackPage = resolve_offline_start_page(frontend_default_config());
+            printf("[frontend_runtime] offline start failed, fallback page=%lu\n",
+                   static_cast<unsigned long>(fallbackPage));
+            g_state.adapter.showPage(fallbackPage);
+        } else {
+            printf("[frontend_runtime] offline start page=%lu\n", static_cast<unsigned long>(startPage));
         }
     }
 

@@ -4,6 +4,8 @@
 #include "frontend_config.h"
 #include "frontend_runtime.h"
 
+#include <stdio.h>
+
 extern "C" {
 #include "ui/screens.h"
 }
@@ -51,8 +53,17 @@ void app_setup() {
         return;
     }
 
-    frontend_load_config(g_frontend_config);
-    frontend_runtime_init(g_frontend_config);
+    const bool cfgLoaded = frontend_load_config(g_frontend_config);
+    printf("[app] frontend config: loaded=%d mode=%s transport=%s offline_demo=%d online_page=%lu offline_page=%lu\n",
+           cfgLoaded ? 1 : 0,
+           frontend_mode_name(g_frontend_config.mode),
+           frontend_transport_name(g_frontend_config.transport.type),
+           g_frontend_config.offlineDemo ? 1 : 0,
+           static_cast<unsigned long>(g_frontend_config.firstOnlinePage),
+           static_cast<unsigned long>(g_frontend_config.firstOfflinePage));
+
+    const bool runtimeReady = frontend_runtime_init(g_frontend_config);
+    printf("[app] frontend runtime init: %s\n", runtimeReady ? "ok" : "fail");
 
     lv_obj_invalidate(lv_scr_act());
     lv_refr_now(nullptr);
