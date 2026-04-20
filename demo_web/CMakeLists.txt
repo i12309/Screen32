@@ -62,6 +62,7 @@ FetchContent_MakeAvailable(nanopb)
 
 set(APP_SOURCES
     ${COMMON_APP_DIR}/app_core.cpp
+    ${COMMON_APP_DIR}/boot_controller.cpp
     ${COMMON_APP_DIR}/frontend_config.cpp
     ${COMMON_APP_DIR}/frontend_runtime.cpp
     ${COMMON_APP_DIR}/frontend_service_responder.cpp
@@ -77,6 +78,7 @@ set(APP_SOURCES
     ${SCREENUI_ADAPTER_DIR}/lvgl_eez/UiObjectMap.cpp
     ${SCREENLIB_CORE_DIR}/bridge/ScreenBridge.cpp
     ${SCREENLIB_CORE_DIR}/frame/FrameCodec.cpp
+    ${SCREENLIB_CORE_DIR}/log/ScreenLibLogger.cpp
     ${SCREENLIB_CORE_DIR}/proto/ProtoCodec.cpp
     ${SCREENLIB_CORE_DIR}/proto/machine.pb.c
     ${SCREENLIB_CLIENT_DIR}/runtime/CommandDispatcher.cpp

@@ -3,6 +3,7 @@
 #include "common_app/frontend_platform.h"
 #include "link/ITransport.h"
 #include "link/WebSocketClientLink.h"
+#include "log/ScreenLibLogger.h"
 
 #include <Arduino.h>
 #include <esp_heap_caps.h>
@@ -22,15 +23,17 @@
 void platform_init(void) {
     // Запуск последовательного лога и инициализация экрана/тача.
     Serial.begin(115200);
-    Serial.println("[ESP32] platform init");
+    screenlib::log::Logger::init(screenlib::log::Level::Debug);
+    SCREENLIB_LOGI("platform.esp32", "platform init");
 
     smartdisplay_init();
     smartdisplay_lcd_set_backlight(1.0f);
 
     // Фиксируем стартовые значения памяти после инициализации.
-    platform_log("[ESP32] heap after init: 8bit=%lu, psram=%lu\n",
-                 heap_caps_get_free_size(MALLOC_CAP_8BIT),
-                 heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    SCREENLIB_LOGI("platform.esp32",
+                   "heap after init: 8bit=%lu, psram=%lu",
+                   static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_8BIT)),
+                   static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
 }
 
 uint32_t platform_tick_ms(void) {
@@ -42,12 +45,10 @@ void platform_delay_ms(uint32_t ms) {
 }
 
 void platform_log(const char *fmt, ...) {
-    char buf[256];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args);
+    screenlib::log::Logger::vlog(screenlib::log::Level::Info, "platform.esp32", fmt, args);
     va_end(args);
-    Serial.print(buf);
 }
 
 void platform_log_heap(const char *tag) {
@@ -56,12 +57,13 @@ void platform_log_heap(const char *tag) {
     const uint32_t free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     const uint32_t largest_8bit = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     const uint32_t largest_psram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
-    Serial.printf("[ESP32] heap %s: 8bit=%lu (largest=%lu), psram=%lu (largest=%lu)\n",
-                  tag,
-                  (unsigned long)free_8bit,
-                  (unsigned long)largest_8bit,
-                  (unsigned long)free_psram,
-                  (unsigned long)largest_psram);
+    SCREENLIB_LOGI("platform.esp32",
+                   "heap %s: 8bit=%lu (largest=%lu), psram=%lu (largest=%lu)",
+                   tag,
+                   static_cast<unsigned long>(free_8bit),
+                   static_cast<unsigned long>(largest_8bit),
+                   static_cast<unsigned long>(free_psram),
+                   static_cast<unsigned long>(largest_psram));
 }
 
 namespace demo {
@@ -132,7 +134,7 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
         "    \"rxPin\": 16,\n"
         "    \"txPin\": 17\n"
         "  },\n"
-        "  \"offline_demo\": 0,\n"
+        "  \"offline_demo\": 1,\n"
         "  \"firstOnlinePage\": 1,\n"
         "  \"firstOfflinePage\": 1\n"
         "}\n";
@@ -143,7 +145,7 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
 }
 
 std::unique_ptr<ITransport> platform_create_transport(const FrontendConfig& config) {
-    if (config.transport.type == FrontendTransportType::None || config.offlineDemo) {
+    if (config.transport.type == FrontendTransportType::None) {
         return nullptr;
     }
 

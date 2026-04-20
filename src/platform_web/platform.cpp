@@ -2,6 +2,7 @@
 #include "common_app/frontend_config.h"
 #include "common_app/frontend_platform.h"
 #include "link/ITransport.h"
+#include "log/ScreenLibLogger.h"
 
 #include <lvgl.h>
 #include <cstdarg>
@@ -229,6 +230,8 @@ void platform_init(void) {
         return;
     }
 
+    screenlib::log::Logger::init(screenlib::log::Level::Debug);
+
     lv_init();
 
     g_display = lv_sdl_window_create(800, 480);
@@ -256,7 +259,7 @@ void platform_delay_ms(uint32_t ms) {
 void platform_log(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    vprintf(fmt, args);
+    screenlib::log::Logger::vlog(screenlib::log::Level::Info, "platform.web", fmt, args);
     va_end(args);
 }
 

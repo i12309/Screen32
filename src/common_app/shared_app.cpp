@@ -1,8 +1,9 @@
 #include "shared_app.h"
 
 #include "app_core.h"
+#include "boot_controller.h"
 #include "frontend_config.h"
-#include "frontend_runtime.h"
+#include "log/ScreenLibLogger.h"
 
 #include <stdio.h>
 
@@ -16,7 +17,8 @@ namespace {
 
 bool g_fallback_mode = false;
 uint32_t g_fallback_last_tick = 0;
-FrontendConfig g_frontend_config = frontend_default_config();
+
+constexpr const char* kLogTag = "app";
 
 bool ui_objects_ready() {
     return objects.load != nullptr &&
@@ -53,17 +55,12 @@ void app_setup() {
         return;
     }
 
-    const bool cfgLoaded = frontend_load_config(g_frontend_config);
-    printf("[app] frontend config: loaded=%d mode=%s transport=%s offline_demo=%d online_page=%lu offline_page=%lu\n",
-           cfgLoaded ? 1 : 0,
-           frontend_mode_name(g_frontend_config.mode),
-           frontend_transport_name(g_frontend_config.transport.type),
-           g_frontend_config.offlineDemo ? 1 : 0,
-           static_cast<unsigned long>(g_frontend_config.firstOnlinePage),
-           static_cast<unsigned long>(g_frontend_config.firstOfflinePage));
+    screenlib::log::Logger::init(screenlib::log::Level::Debug);
 
-    const bool runtimeReady = frontend_runtime_init(g_frontend_config);
-    printf("[app] frontend runtime init: %s\n", runtimeReady ? "ok" : "fail");
+    FrontendConfig frontendConfig = frontend_default_config();
+    const bool cfgLoaded = frontend_load_config(frontendConfig);
+    SCREENLIB_LOGI(kLogTag, "frontend config loaded=%d", cfgLoaded ? 1 : 0);
+    boot_controller().begin(frontendConfig, cfgLoaded);
 
     lv_obj_invalidate(lv_scr_act());
     lv_refr_now(nullptr);
@@ -72,7 +69,7 @@ void app_setup() {
 void app_loop() {
     if (!g_fallback_mode) {
         app_core_tick();
-        frontend_runtime_tick();
+        boot_controller().tick();
         return;
     }
 
