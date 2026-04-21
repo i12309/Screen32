@@ -22,7 +22,6 @@ public:
     State state() const { return _state; }
 
 private:
-    static constexpr uint32_t kBackendWaitTimeoutMs = 60000;
     static constexpr uint32_t kWaitLogPeriodMs = 5000;
 
     void print_boot_banner() const;

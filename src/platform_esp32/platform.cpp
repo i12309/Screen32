@@ -131,10 +131,11 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
         "  \"transport\": {\n"
         "    \"type\": \"uart\",\n"
         "    \"baud\": 115200,\n"
-        "    \"rxPin\": 16,\n"
-        "    \"txPin\": 17\n"
+        "    \"rxPin\": 17,\n"
+        "    \"txPin\": 18\n"
         "  },\n"
         "  \"offline_demo\": 1,\n"
+        "  \"backendWaitTimeoutMs\": 15000,\n"
         "  \"firstOnlinePage\": 1,\n"
         "  \"firstOfflinePage\": 1\n"
         "}\n";

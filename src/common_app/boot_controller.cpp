@@ -122,14 +122,14 @@ void BootController::tick() {
             }
 
             if (!_config.offlineDemo) {
-                if (!_waitTimeoutReachedLogged && (now - _waitStartMs) >= kBackendWaitTimeoutMs) {
+                if (!_waitTimeoutReachedLogged && (now - _waitStartMs) >= _config.backendWaitTimeoutMs) {
                     SCREENLIB_LOGW(kLogTag, "backend wait timeout reached; demo disabled, keep waiting forever");
                     _waitTimeoutReachedLogged = true;
                 }
                 return;
             }
 
-            if ((now - _waitStartMs) >= kBackendWaitTimeoutMs) {
+            if ((now - _waitStartMs) >= _config.backendWaitTimeoutMs) {
                 fallback_to_demo("backend wait timeout reached");
             }
             return;
@@ -198,7 +198,7 @@ void BootController::enter_waiting_backend() {
     _lastWaitLogMs = _waitStartMs;
     SCREENLIB_LOGI(kLogTag,
                    "waiting backend connection (timeout=%lus, demo_allowed=%d)",
-                   static_cast<unsigned long>(kBackendWaitTimeoutMs / 1000U),
+                   static_cast<unsigned long>(_config.backendWaitTimeoutMs / 1000U),
                    _config.offlineDemo ? 1 : 0);
 }
 

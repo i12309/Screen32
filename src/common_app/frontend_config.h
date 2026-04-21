@@ -22,8 +22,8 @@ struct FrontendTransportConfig {
     FrontendTransportType type = FrontendTransportType::None;
     char url[128] = "ws://127.0.0.1:81";
     uint32_t baud = 115200;
-    int32_t rxPin = 16;
-    int32_t txPin = 17;
+    int32_t rxPin = 44;
+    int32_t txPin = 43;
 };
 
 struct FrontendConfig {
@@ -34,6 +34,8 @@ struct FrontendConfig {
     uint32_t firstOnlinePage = 1;
     // Первая страница для показа в offline demo-режиме.
     uint32_t firstOfflinePage = 1;
+    // Через сколько миллисекунд ожидания backend переключаться в offline demo.
+    uint32_t backendWaitTimeoutMs = 60000;
 };
 
 // Возвращает конфиг frontend по умолчанию для текущей платформы.

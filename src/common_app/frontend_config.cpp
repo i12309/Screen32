@@ -158,8 +158,8 @@ FrontendConfig frontend_default_config() {
     cfg.firstOfflinePage = 1;
     copy_string(cfg.transport.url, sizeof(cfg.transport.url), "ws://127.0.0.1:81");
     cfg.transport.baud = 115200;
-    cfg.transport.rxPin = 16;
-    cfg.transport.txPin = 17;
+    cfg.transport.rxPin = 44;
+    cfg.transport.txPin = 43;
     return cfg;
 }
 
@@ -223,6 +223,17 @@ bool frontend_parse_config_json(const char* json, FrontendConfig& outConfig) {
         bool value = false;
         if (parse_json_bool_like_value(offlinePos, value)) {
             cfg.offlineDemo = value;
+        }
+    }
+
+    const char* timeoutPos = find_json_key_value(json, "backendWaitTimeoutMs");
+    if (timeoutPos == nullptr) {
+        timeoutPos = find_json_key_value(json, "backend_wait_timeout_ms");
+    }
+    if (timeoutPos != nullptr) {
+        int32_t timeoutValue = 0;
+        if (parse_json_int_value(timeoutPos, timeoutValue) && timeoutValue >= 0) {
+            cfg.backendWaitTimeoutMs = static_cast<uint32_t>(timeoutValue);
         }
     }
 
