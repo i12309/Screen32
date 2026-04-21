@@ -34,8 +34,11 @@ struct FrontendConfig {
     uint32_t firstOnlinePage = 1;
     // Первая страница для показа в offline demo-режиме.
     uint32_t firstOfflinePage = 1;
-    // Через сколько миллисекунд ожидания backend переключаться в offline demo.
-    uint32_t backendWaitTimeoutMs = 60000;
+    // Через сколько миллисекунд ожидания backend пытаться перейти в offline demo.
+    // JSON-параметр: offline_timeout_ms.
+    uint32_t offlineTimeoutMs = 30000;
+    // Heartbeat period in online mode (ms). 0 disables heartbeat sending.
+    uint32_t heartbeatPeriodMs = 1000;
 };
 
 // Возвращает конфиг frontend по умолчанию для текущей платформы.

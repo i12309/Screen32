@@ -28,12 +28,11 @@ private:
     void enter_fault(const char* reason);
     void enter_waiting_backend();
     void promote_backend_ready();
-    void fallback_to_demo(const char* reason);
+    bool fallback_to_demo(const char* reason);
 
     FrontendConfig _config = frontend_default_config();
     bool _started = false;
     bool _configLoaded = false;
-    bool _waitTimeoutReachedLogged = false;
     uint32_t _bootStartMs = 0;
     uint32_t _waitStartMs = 0;
     uint32_t _lastWaitLogMs = 0;

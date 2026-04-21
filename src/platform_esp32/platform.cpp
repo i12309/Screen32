@@ -135,7 +135,8 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
         "    \"txPin\": 18\n"
         "  },\n"
         "  \"offline_demo\": 1,\n"
-        "  \"backendWaitTimeoutMs\": 15000,\n"
+        "  \"offline_timeout_ms\": 30000,\n"
+        "  \"heartbeatPeriodMs\": 0,\n"
         "  \"firstOnlinePage\": 1,\n"
         "  \"firstOfflinePage\": 1\n"
         "}\n";

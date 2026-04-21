@@ -25,7 +25,6 @@ namespace {
 constexpr size_t kMaxObjectBindings = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
 constexpr size_t kMaxPageBindings = SCREEN32_PAGE_DESCRIPTOR_COUNT;
 constexpr size_t kMaxTrackedElements = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
-constexpr uint32_t kHeartbeatPeriodMs = 1000;
 constexpr uint32_t kHelloRetryPeriodMs = 5000;
 constexpr const char* kLogTag = "frontend.runtime";
 
@@ -493,12 +492,13 @@ bool frontend_runtime_init_internal(const FrontendConfig& config, RuntimeInitMod
     g_state.backendConnected = false;
 
     SCREENLIB_LOGI(kLogTag,
-                   "init mode=%s transport=%s offline_demo=%d online_page=%lu offline_page=%lu",
+                   "init mode=%s transport=%s offline_demo=%d online_page=%lu offline_page=%lu hb_ms=%lu",
                    frontend_mode_name(config.mode),
                    frontend_transport_name(config.transport.type),
                    config.offlineDemo ? 1 : 0,
                    static_cast<unsigned long>(config.firstOnlinePage),
-                   static_cast<unsigned long>(config.firstOfflinePage));
+                   static_cast<unsigned long>(config.firstOfflinePage),
+                   static_cast<unsigned long>(config.heartbeatPeriodMs));
 
     screenlib::adapter::EezLvglHooks hooks{};
     hooks.showPage = &hook_show_page;
@@ -592,7 +592,8 @@ void frontend_runtime_tick() {
         SCREENLIB_LOGD(kLogTag, "hello retry: %s", helloOk ? "ok" : "fail");
     }
 
-    if (now - g_state.lastHeartbeatMs >= kHeartbeatPeriodMs) {
+    if (g_state.config.heartbeatPeriodMs > 0 &&
+        (now - g_state.lastHeartbeatMs) >= g_state.config.heartbeatPeriodMs) {
         g_state.client->sendHeartbeat(now);
         g_state.lastHeartbeatMs = now;
     }

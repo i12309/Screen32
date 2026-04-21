@@ -156,6 +156,8 @@ FrontendConfig frontend_default_config() {
     cfg.offlineDemo = true;
     cfg.firstOnlinePage = 1;
     cfg.firstOfflinePage = 1;
+    cfg.offlineTimeoutMs = 30000;
+    cfg.heartbeatPeriodMs = 1000;
     copy_string(cfg.transport.url, sizeof(cfg.transport.url), "ws://127.0.0.1:81");
     cfg.transport.baud = 115200;
     cfg.transport.rxPin = 44;
@@ -226,14 +228,22 @@ bool frontend_parse_config_json(const char* json, FrontendConfig& outConfig) {
         }
     }
 
-    const char* timeoutPos = find_json_key_value(json, "backendWaitTimeoutMs");
-    if (timeoutPos == nullptr) {
-        timeoutPos = find_json_key_value(json, "backend_wait_timeout_ms");
-    }
+    const char* timeoutPos = find_json_key_value(json, "offline_timeout_ms");
     if (timeoutPos != nullptr) {
         int32_t timeoutValue = 0;
         if (parse_json_int_value(timeoutPos, timeoutValue) && timeoutValue >= 0) {
-            cfg.backendWaitTimeoutMs = static_cast<uint32_t>(timeoutValue);
+            cfg.offlineTimeoutMs = static_cast<uint32_t>(timeoutValue);
+        }
+    }
+
+    const char* heartbeatPos = find_json_key_value(json, "heartbeatPeriodMs");
+    if (heartbeatPos == nullptr) {
+        heartbeatPos = find_json_key_value(json, "heartbeat_period_ms");
+    }
+    if (heartbeatPos != nullptr) {
+        int32_t heartbeatValue = 0;
+        if (parse_json_int_value(heartbeatPos, heartbeatValue) && heartbeatValue >= 0) {
+            cfg.heartbeatPeriodMs = static_cast<uint32_t>(heartbeatValue);
         }
     }
 

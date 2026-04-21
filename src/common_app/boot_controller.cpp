@@ -45,7 +45,6 @@ void BootController::begin(const FrontendConfig& config, bool configLoaded) {
     _bootStartMs = platform_tick_ms();
     _waitStartMs = 0;
     _lastWaitLogMs = _bootStartMs;
-    _waitTimeoutReachedLogged = false;
 
     print_boot_banner();
     print_config();
@@ -98,16 +97,23 @@ void BootController::tick() {
                 _lastWaitLogMs = now;
             }
 
-            if ((now - _waitStartMs) < _config.backendWaitTimeoutMs) {
+            if (_config.offlineTimeoutMs == 0) {
+                // Timeout disabled: keep waiting backend forever.
                 return;
             }
 
-            if (_waitTimeoutReachedLogged) {
+            if ((now - _waitStartMs) < _config.offlineTimeoutMs) {
                 return;
             }
 
-            _waitTimeoutReachedLogged = true;
-            fallback_to_demo("backend wait timeout reached");
+            if (!fallback_to_demo("backend wait timeout reached")) {
+                // Demo disabled or failed to start: keep waiting in the next timeout window.
+                _waitStartMs = now;
+                _lastWaitLogMs = now;
+                SCREENLIB_LOGI(kLogTag,
+                               "backend still unavailable; continue waiting (next timeout=%lus)",
+                               static_cast<unsigned long>(_config.offlineTimeoutMs / 1000U));
+            }
             return;
         }
         case State::Running:
@@ -168,9 +174,13 @@ void BootController::enter_waiting_backend() {
     _state = State::WaitingBackend;
     _waitStartMs = platform_tick_ms();
     _lastWaitLogMs = _waitStartMs;
-    SCREENLIB_LOGI(kLogTag,
-                   "waiting backend connection (timeout=%lus)",
-                   static_cast<unsigned long>(_config.backendWaitTimeoutMs / 1000U));
+    if (_config.offlineTimeoutMs == 0) {
+        SCREENLIB_LOGI(kLogTag, "waiting backend connection (timeout=disabled)");
+    } else {
+        SCREENLIB_LOGI(kLogTag,
+                       "waiting backend connection (timeout=%lus)",
+                       static_cast<unsigned long>(_config.offlineTimeoutMs / 1000U));
+    }
 }
 
 void BootController::promote_backend_ready() {
@@ -182,14 +192,15 @@ void BootController::promote_backend_ready() {
                    static_cast<unsigned long>(elapsedMs));
 }
 
-void BootController::fallback_to_demo(const char* reason) {
+bool BootController::fallback_to_demo(const char* reason) {
     SCREENLIB_LOGW(kLogTag, "fallback to demo: %s", reason != nullptr ? reason : "timeout");
     if (!frontend_runtime_switch_to_offline_demo()) {
         SCREENLIB_LOGW(kLogTag, "fallback to demo failed; keep waiting backend");
-        return;
+        return false;
     }
     _state = State::Running;
     SCREENLIB_LOGI(kLogTag, "offline demo mode started");
+    return true;
 }
 
 } // namespace demo
