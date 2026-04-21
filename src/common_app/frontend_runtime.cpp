@@ -12,7 +12,8 @@
 #include "log/ScreenLibLogger.h"
 #include "page_descriptors.generated.h"
 #include "ui_object_map.generated.h"
-#include "common_app/offline_demo_controller.h"
+#include "demo/offline_demo_controller.h"
+#include "demo/offline_demo_ui_events.h"
 #include "lvgl_eez/EezLvglAdapter.h"
 #include "lvgl_eez/UiObjectMap.h"
 #include "runtime/ScreenClient.h"
@@ -439,6 +440,7 @@ bool start_online_mode(const FrontendConfig& config) {
         return false;
     }
 
+    offline_demo_ui_events_set_enabled(false);
     g_state.offlineDemo = false;
     g_state.online = true;
     g_state.backendConnected = false;
@@ -460,6 +462,7 @@ bool start_online_mode(const FrontendConfig& config) {
 bool start_offline_demo_mode(const FrontendConfig& config) {
     g_state.client.reset();
     g_state.transport.reset();
+    offline_demo_ui_events_set_enabled(true);
     g_state.offlineDemo = true;
     g_state.online = false;
     g_state.backendConnected = false;
@@ -551,10 +554,10 @@ bool frontend_runtime_init_internal(const FrontendConfig& config, RuntimeInitMod
     FrontendUiEventSink sink{};
     sink.userData = &g_state;
     sink.onButtonEvent = &on_ui_button_event;
-    sink.onObjectClick = useOfflineDemo ? &on_ui_object_click : nullptr;
     sink.onInputEventInt = &on_ui_input_event_int;
     sink.onInputEventText = &on_ui_input_event_text;
     frontend_ui_events_attach_generated(g_state.tracked, g_state.trackedCount, sink);
+    offline_demo_ui_events_init(g_state.tracked, g_state.trackedCount, &on_ui_object_click, &g_state);
 
     const bool ready = useOfflineDemo ? start_offline_demo_mode(config) : start_online_mode(config);
     g_state.initialized = ready;
@@ -603,6 +606,10 @@ bool frontend_runtime_is_offline_demo() {
     return g_state.offlineDemo;
 }
 
+bool frontend_runtime_demo_available() {
+    return true;
+}
+
 bool frontend_runtime_backend_connected() {
     return g_state.backendConnected;
 }
@@ -613,6 +620,10 @@ bool frontend_runtime_switch_to_offline_demo() {
     }
     if (g_state.offlineDemo) {
         return true;
+    }
+    if (!g_state.config.offlineDemo) {
+        SCREENLIB_LOGW(kLogTag, "offline demo disabled by config");
+        return false;
     }
 
     SCREENLIB_LOGW(kLogTag, "switching runtime to offline demo mode");

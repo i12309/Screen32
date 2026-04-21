@@ -3,17 +3,10 @@
 #include <lvgl.h>
 
 #include "element_descriptors.generated.h"
-#include "page_descriptors.generated.h"
-
-extern "C" {
-#include "ui/screens.h"
-}
 
 namespace demo {
 
 namespace {
-
-constexpr uint32_t kSyntheticPageTapElementId = 0;
 
 const Screen32BoundElement* g_trackedElements = nullptr;
 size_t g_trackedCount = 0;
@@ -52,52 +45,6 @@ bool read_element_int_value(lv_obj_t* obj, int32_t& outValue) {
     return false;
 }
 
-lv_obj_t* find_page_root_by_id(uint32_t pageId) {
-    switch (pageId) {
-        case scr_LOAD:
-            return objects.load;
-        case scr_MAIN:
-            return objects.main;
-        case scr_KEYBOARD:
-            return objects.keyboard;
-        case scr_TASK_RUN:
-            return objects.task_run;
-        case scr_TASK_PROCESS:
-            return objects.task_process;
-        case scr_INFO:
-            return objects.info;
-        case scr_INPUT:
-            return objects.input;
-        case scr_INIT:
-            return objects.init;
-        case scr_WAIT:
-            return objects.wait;
-        case scr_SERVICE:
-            return objects.service;
-        case scr_SERVICE2:
-            return objects.service2;
-        case scr_DEF_PAGE:
-            return objects.def_page;
-        case scr_DEF_PAGE2:
-            return objects.def_page2;
-        case scr_DEF_PAGE3:
-            return objects.def_page3;
-        case scr_DEF_PAGE4:
-            return objects.def_page4;
-        default:
-            return nullptr;
-    }
-}
-
-bool has_tracked_elements_for_page(uint32_t pageId) {
-    for (size_t i = 0; i < g_trackedCount; ++i) {
-        if (g_trackedElements[i].pageId == pageId && g_trackedElements[i].obj != nullptr) {
-            return true;
-        }
-    }
-    return false;
-}
-
 void on_ui_event_cb(lv_event_t* e) {
     if (e == nullptr) {
         return;
@@ -108,13 +55,6 @@ void on_ui_event_cb(lv_event_t* e) {
     const uint32_t pageId = screen32_current_page_id();
     lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
 
-    if (elementId == kSyntheticPageTapElementId) {
-        if ((code == LV_EVENT_CLICKED || code == LV_EVENT_READY) && g_sink.onObjectClick != nullptr) {
-            g_sink.onObjectClick(g_sink.userData, elementId, pageId);
-        }
-        return;
-    }
-
     const Screen32BoundElement* tracked = find_tracked_element_by_id(elementId);
     const Screen32ElementDescriptor* descriptor =
         (tracked != nullptr) ? tracked->descriptor : screen32_find_element_descriptor(elementId);
@@ -123,12 +63,8 @@ void on_ui_event_cb(lv_event_t* e) {
     }
 
     if (code == LV_EVENT_CLICKED) {
-        if (descriptor->emits_button_event) {
-            if (g_sink.onButtonEvent != nullptr) {
-                g_sink.onButtonEvent(g_sink.userData, elementId, pageId);
-            }
-        } else if (g_sink.onObjectClick != nullptr) {
-            g_sink.onObjectClick(g_sink.userData, elementId, pageId);
+        if (descriptor->emits_button_event && g_sink.onButtonEvent != nullptr) {
+            g_sink.onButtonEvent(g_sink.userData, elementId, pageId);
         }
         return;
     }
@@ -152,43 +88,6 @@ void on_ui_event_cb(lv_event_t* e) {
     }
 }
 
-void attach_fallback_click_handlers_recursive(lv_obj_t* obj) {
-    if (obj == nullptr || !lv_obj_is_valid(obj)) {
-        return;
-    }
-
-    lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(
-        obj,
-        on_ui_event_cb,
-        LV_EVENT_CLICKED,
-        reinterpret_cast<void*>(static_cast<uintptr_t>(kSyntheticPageTapElementId)));
-    lv_obj_add_event_cb(
-        obj,
-        on_ui_event_cb,
-        LV_EVENT_READY,
-        reinterpret_cast<void*>(static_cast<uintptr_t>(kSyntheticPageTapElementId)));
-
-    const uint32_t childCount = lv_obj_get_child_count(obj);
-    for (uint32_t i = 0; i < childCount; ++i) {
-        attach_fallback_click_handlers_recursive(lv_obj_get_child(obj, static_cast<int32_t>(i)));
-    }
-}
-
-void attach_fallback_handlers_for_pages_without_tracked_elements() {
-    if (g_sink.onObjectClick == nullptr) {
-        return;
-    }
-
-    for (size_t i = 0; i < screen32_page_descriptor_count(); ++i) {
-        const uint32_t pageId = g_screen32_page_descriptors[i].page_id;
-        if (has_tracked_elements_for_page(pageId)) {
-            continue;
-        }
-        attach_fallback_click_handlers_recursive(find_page_root_by_id(pageId));
-    }
-}
-
 } // namespace
 
 void frontend_ui_events_attach_generated(const Screen32BoundElement* trackedElements,
@@ -204,11 +103,7 @@ void frontend_ui_events_attach_generated(const Screen32BoundElement* trackedElem
             continue;
         }
 
-        const bool needsObjectClicks = g_sink.onObjectClick != nullptr;
-        if (tracked.descriptor->emits_button_event || needsObjectClicks) {
-            if (!tracked.descriptor->emits_button_event && needsObjectClicks) {
-                lv_obj_add_flag(tracked.obj, LV_OBJ_FLAG_CLICKABLE);
-            }
+        if (tracked.descriptor->emits_button_event) {
             lv_obj_add_event_cb(
                 tracked.obj,
                 on_ui_event_cb,
@@ -224,8 +119,6 @@ void frontend_ui_events_attach_generated(const Screen32BoundElement* trackedElem
                 reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
         }
     }
-
-    attach_fallback_handlers_for_pages_without_tracked_elements();
 }
 
 } // namespace demo

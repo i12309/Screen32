@@ -29,6 +29,9 @@ bool frontend_runtime_is_online();
 // Возвращает true, если runtime работает в локальном offline demo режиме.
 bool frontend_runtime_is_offline_demo();
 
+// Возвращает true, если demo-модуль подключен в текущей сборке.
+bool frontend_runtime_demo_available();
+
 // Возвращает true после первого входящего сообщения от backend.
 bool frontend_runtime_backend_connected();
 

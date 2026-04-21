@@ -1,7 +1,4 @@
-ï»¿#include "common_app/offline_demo_controller.h"
-
-#include <ctype.h>
-#include <string.h>
+#include "demo/offline_demo_controller.h"
 
 #include <lvgl.h>
 
@@ -14,80 +11,12 @@ namespace demo {
 namespace {
 
 constexpr size_t kMaxButtonsPerPage = 32;
-constexpr size_t kMaxBarsPerPage = 8;
-
 bool is_known_page_id(uint32_t pageId) {
     return screen32_find_page_descriptor(pageId) != nullptr;
 }
 
 bool is_known_element_id(uint32_t elementId) {
     return screen32_find_element_descriptor(elementId) != nullptr;
-}
-
-char to_lower_ascii(char ch) {
-    return static_cast<char>(tolower(static_cast<unsigned char>(ch)));
-}
-
-bool starts_with_ignore_case(const char* text, const char* prefix) {
-    if (text == nullptr || prefix == nullptr) {
-        return false;
-    }
-
-    while (*prefix != '\0') {
-        if (*text == '\0') {
-            return false;
-        }
-        if (to_lower_ascii(*text) != to_lower_ascii(*prefix)) {
-            return false;
-        }
-        ++text;
-        ++prefix;
-    }
-
-    return true;
-}
-
-bool contains_ignore_case(const char* text, const char* token) {
-    if (text == nullptr || token == nullptr || *token == '\0') {
-        return false;
-    }
-
-    const size_t textLen = strlen(text);
-    const size_t tokenLen = strlen(token);
-    if (tokenLen > textLen) {
-        return false;
-    }
-
-    for (size_t i = 0; i + tokenLen <= textLen; ++i) {
-        bool match = true;
-        for (size_t j = 0; j < tokenLen; ++j) {
-            if (to_lower_ascii(text[i + j]) != to_lower_ascii(token[j])) {
-                match = false;
-                break;
-            }
-        }
-        if (match) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool is_bar_container_descriptor(const Screen32ElementDescriptor& descriptor) {
-    if (descriptor.element_type != TYPE_CONTAINER) {
-        return false;
-    }
-    return starts_with_ignore_case(descriptor.object_name, "c_bar") ||
-           starts_with_ignore_case(descriptor.element_name, "cnt_BAR");
-}
-
-bool is_back_button_descriptor(const Screen32ElementDescriptor* descriptor) {
-    if (descriptor == nullptr) {
-        return false;
-    }
-    return contains_ignore_case(descriptor->element_name, "back") ||
-           contains_ignore_case(descriptor->object_name, "back");
 }
 
 } // namespace
@@ -185,9 +114,6 @@ bool OfflineDemoController::configureDefaultDemo() {
 
         uint32_t pageButtons[kMaxButtonsPerPage] = {};
         size_t pageButtonCount = 0;
-        uint32_t barElements[kMaxBarsPerPage] = {};
-        size_t barCount = 0;
-        bool hasBar = false;
 
         const size_t elementCount = screen32_element_descriptor_count();
         for (size_t i = 0; i < elementCount; ++i) {
@@ -196,115 +122,33 @@ bool OfflineDemoController::configureDefaultDemo() {
                 continue;
             }
 
-            if (is_bar_container_descriptor(descriptor)) {
-                hasBar = true;
-                if (barCount < kMaxBarsPerPage) {
-                    barElements[barCount++] = descriptor.element_id;
-                }
-            }
-
             if (descriptor.emits_button_event && pageButtonCount < kMaxButtonsPerPage) {
                 pageButtons[pageButtonCount++] = descriptor.element_id;
             }
         }
 
-        uint32_t navButtons[kMaxButtonsPerPage] = {};
-        size_t navButtonCount = 0;
-
-        if (hasBar && pageButtonCount > 0) {
-            for (size_t i = 0; i < pageButtonCount; ++i) {
-                if (isButtonInsideBar(pageButtons[i], barElements, barCount)) {
-                    navButtons[navButtonCount++] = pageButtons[i];
-                }
-            }
-        }
-
-        if (navButtonCount == 0) {
-            for (size_t i = 0; i < pageButtonCount; ++i) {
-                navButtons[navButtonCount++] = pageButtons[i];
-            }
-        }
-
-        bool hasPageBinding = false;
-
-        if (hasBar) {
-            bool hasBack = false;
-            uint32_t firstNonBackButton = 0;
-            for (size_t i = 0; i < navButtonCount; ++i) {
-                const uint32_t buttonId = navButtons[i];
-                const Screen32ElementDescriptor* descriptor = screen32_find_element_descriptor(buttonId);
-                if (is_back_button_descriptor(descriptor)) {
-                    ok = bindButtonToPrev(buttonId) && ok;
-                    hasBack = true;
-                    hasPageBinding = true;
-                    continue;
-                }
-                if (firstNonBackButton == 0) {
-                    firstNonBackButton = buttonId;
-                }
-            }
-
-            if (hasBack) {
-                if (firstNonBackButton == 0) {
-                    for (size_t i = 0; i < pageButtonCount; ++i) {
-                        const uint32_t buttonId = pageButtons[i];
-                        const Screen32ElementDescriptor* descriptor = screen32_find_element_descriptor(buttonId);
-                        if (!is_back_button_descriptor(descriptor)) {
-                            firstNonBackButton = buttonId;
-                            break;
-                        }
-                    }
-                }
-                if (firstNonBackButton != 0) {
-                    ok = bindButtonToNext(firstNonBackButton) && ok;
-                    hasPageBinding = true;
-                }
-            } else {
-                uint32_t prevCandidate = 0;
-                uint32_t nextCandidate = 0;
-
-                if (navButtonCount >= 1) {
-                    prevCandidate = navButtons[0];
-                } else if (pageButtonCount >= 1) {
-                    prevCandidate = pageButtons[0];
-                }
-
-                if (navButtonCount >= 2) {
-                    nextCandidate = navButtons[1];
-                } else {
-                    for (size_t i = 0; i < pageButtonCount; ++i) {
-                        if (pageButtons[i] != prevCandidate) {
-                            nextCandidate = pageButtons[i];
-                            break;
-                        }
-                    }
-                }
-
-                if (prevCandidate != 0) {
-                    ok = bindButtonToPrev(prevCandidate) && ok;
-                    hasPageBinding = true;
-                }
-                if (nextCandidate != 0) {
-                    ok = bindButtonToNext(nextCandidate) && ok;
-                    hasPageBinding = true;
-                }
-            }
-        } else if (pageButtonCount > 0) {
-            ok = bindButtonToNext(pageButtons[0]) && ok;
-            hasPageBinding = true;
-        }
-
-        if (!hasPageBinding) {
+        // Rules:
+        // 1) No buttons on page -> any click goes to next page.
+        // 2) At least one button -> first button goes prev.
+        // 3) Any other element (including 2nd+ buttons) goes next.
+        if (pageButtonCount == 0) {
             ok = bindPageTapToNext(pageId) && ok;
+            continue;
         }
+
+        ok = bindButtonToPrev(pageButtons[0]) && ok;
+        for (size_t i = 1; i < pageButtonCount; ++i) {
+            ok = bindButtonToNext(pageButtons[i]) && ok;
+        }
+        ok = bindPageTapToNext(pageId) && ok;
     }
 
     return ok;
 }
 
 bool OfflineDemoController::start(uint32_t startPageId) {
-    // Ð”ÐµÑ€Ð¶Ð¸Ð¼ demo-Ð¿Ñ€Ð°Ð²Ð¸Ð»Ð° ÑÐ°Ð¼Ð¾Ð´Ð¾ÑÑ‚Ð°Ñ‚Ð¾Ñ‡Ð½Ñ‹Ð¼Ð¸: ÐµÑÐ»Ð¸ Ð²Ñ‹Ð·Ñ‹Ð²Ð°ÑŽÑ‰Ð¸Ð¹ ÐºÐ¾Ð´ Ð½Ðµ Ð·Ð°Ð´Ð°Ð» ÑÐ²Ð¾Ð¹ Ð¿Ð¾Ñ€ÑÐ´Ð¾Ðº Ð¸ bindings,
-    // ÐºÐ¾Ð½Ñ‚Ñ€Ð¾Ð»Ð»ÐµÑ€ Ð¿Ñ€Ð¸Ð¼ÐµÐ½ÑÐµÑ‚ Ð²ÑÑ‚Ñ€Ð¾ÐµÐ½Ð½Ñ‹Ðµ Ð½Ð°ÑÑ‚Ñ€Ð¾Ð¹ÐºÐ¸ Ð´Ð¾ Ð¿ÐµÑ€Ð²Ð¾Ð³Ð¾ Ð·Ð°Ð¿ÑƒÑÐºÐ°.
+    // Äåðæèì demo-ïðàâèëà ñàìîäîñòàòî÷íûìè: åñëè âûçûâàþùèé êîä íå çàäàë ñâîé ïîðÿäîê è bindings,
+    // êîíòðîëëåð ïðèìåíÿåò âñòðîåííûå íàñòðîéêè äî ïåðâîãî çàïóñêà.
     if (_pageOrderCount == 0) {
         if (!configureDefaultDemo()) {
             return false;

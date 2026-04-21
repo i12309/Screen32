@@ -21,10 +21,8 @@ const char* state_name(BootController::State state) {
             return "idle";
         case BootController::State::WaitingBackend:
             return "waiting_backend";
-        case BootController::State::Online:
-            return "online";
-        case BootController::State::OfflineDemo:
-            return "offline_demo";
+        case BootController::State::Running:
+            return "running";
         case BootController::State::Fault:
             return "fault";
         default:
@@ -58,38 +56,18 @@ void BootController::begin(const FrontendConfig& config, bool configLoaded) {
             enter_fault("runtime init failed");
             return;
         }
-        _state = frontend_runtime_is_offline_demo() ? State::OfflineDemo : State::Online;
+        _state = State::Running;
         SCREENLIB_LOGI(kLogTag, "boot complete (mode=%s)", state_name(_state));
         return;
     }
 
     if (_config.transport.type == FrontendTransportType::None) {
-        if (_config.offlineDemo) {
-            const bool ok = frontend_runtime_init_offline_demo(_config);
-            if (!ok) {
-                enter_fault("offline demo init failed");
-                return;
-            }
-            _state = State::OfflineDemo;
-            SCREENLIB_LOGW(kLogTag, "transport=none, start offline demo");
-            return;
-        }
-        enter_fault("transport=none and offline demo is disabled");
+        enter_fault("transport=none in online boot path");
         return;
     }
 
     const bool onlineReady = frontend_runtime_init_online(_config);
     if (!onlineReady) {
-        if (_config.offlineDemo) {
-            SCREENLIB_LOGW(kLogTag, "online init failed, fallback to offline demo");
-            const bool offlineReady = frontend_runtime_init_offline_demo(_config);
-            if (!offlineReady) {
-                enter_fault("online init failed and offline demo init failed");
-                return;
-            }
-            _state = State::OfflineDemo;
-            return;
-        }
         enter_fault("online init failed");
         return;
     }
@@ -115,29 +93,24 @@ void BootController::tick() {
             if ((now - _lastWaitLogMs) >= kWaitLogPeriodMs) {
                 const uint32_t elapsedSec = (now - _waitStartMs) / 1000U;
                 SCREENLIB_LOGI(kLogTag,
-                               "waiting backend... %lus elapsed (demo_allowed=%d)",
-                               static_cast<unsigned long>(elapsedSec),
-                               _config.offlineDemo ? 1 : 0);
+                               "waiting backend... %lus elapsed",
+                               static_cast<unsigned long>(elapsedSec));
                 _lastWaitLogMs = now;
             }
 
-            if (!_config.offlineDemo) {
-                if (!_waitTimeoutReachedLogged && (now - _waitStartMs) >= _config.backendWaitTimeoutMs) {
-                    SCREENLIB_LOGW(kLogTag, "backend wait timeout reached; demo disabled, keep waiting forever");
-                    _waitTimeoutReachedLogged = true;
-                }
+            if ((now - _waitStartMs) < _config.backendWaitTimeoutMs) {
                 return;
             }
 
-            if ((now - _waitStartMs) >= _config.backendWaitTimeoutMs) {
-                fallback_to_demo("backend wait timeout reached");
+            if (_waitTimeoutReachedLogged) {
+                return;
             }
+
+            _waitTimeoutReachedLogged = true;
+            fallback_to_demo("backend wait timeout reached");
             return;
         }
-        case State::Online:
-            frontend_runtime_tick();
-            return;
-        case State::OfflineDemo:
+        case State::Running:
             frontend_runtime_tick();
             return;
         case State::Idle:
@@ -169,10 +142,9 @@ void BootController::print_boot_banner() const {
 
 void BootController::print_config() const {
     SCREENLIB_LOGI(kLogTag,
-                   "frontend mode=%s transport=%s offline_demo=%d first_online_page=%lu first_offline_page=%lu",
+                   "frontend mode=%s transport=%s first_online_page=%lu first_offline_page=%lu",
                    frontend_mode_name(_config.mode),
                    frontend_transport_name(_config.transport.type),
-                   _config.offlineDemo ? 1 : 0,
                    static_cast<unsigned long>(_config.firstOnlinePage),
                    static_cast<unsigned long>(_config.firstOfflinePage));
 
@@ -197,27 +169,26 @@ void BootController::enter_waiting_backend() {
     _waitStartMs = platform_tick_ms();
     _lastWaitLogMs = _waitStartMs;
     SCREENLIB_LOGI(kLogTag,
-                   "waiting backend connection (timeout=%lus, demo_allowed=%d)",
-                   static_cast<unsigned long>(_config.backendWaitTimeoutMs / 1000U),
-                   _config.offlineDemo ? 1 : 0);
+                   "waiting backend connection (timeout=%lus)",
+                   static_cast<unsigned long>(_config.backendWaitTimeoutMs / 1000U));
 }
 
 void BootController::promote_backend_ready() {
-    _state = State::Online;
+    _state = State::Running;
     const uint32_t now = platform_tick_ms();
     const uint32_t elapsedMs = now - _waitStartMs;
     SCREENLIB_LOGI(kLogTag,
-                   "backend connected after %lu ms; continue in online mode",
+                   "backend connected after %lu ms; continue runtime",
                    static_cast<unsigned long>(elapsedMs));
 }
 
 void BootController::fallback_to_demo(const char* reason) {
     SCREENLIB_LOGW(kLogTag, "fallback to demo: %s", reason != nullptr ? reason : "timeout");
     if (!frontend_runtime_switch_to_offline_demo()) {
-        enter_fault("failed to switch runtime to offline demo");
+        SCREENLIB_LOGW(kLogTag, "fallback to demo failed; keep waiting backend");
         return;
     }
-    _state = State::OfflineDemo;
+    _state = State::Running;
     SCREENLIB_LOGI(kLogTag, "offline demo mode started");
 }
 

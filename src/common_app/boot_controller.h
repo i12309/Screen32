@@ -11,8 +11,7 @@ public:
     enum class State : uint8_t {
         Idle = 0,
         WaitingBackend,
-        Online,
-        OfflineDemo,
+        Running,
         Fault
     };
 
