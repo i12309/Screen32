@@ -12,8 +12,33 @@ const Screen32BoundElement* g_trackedElements = nullptr;
 size_t g_trackedCount = 0;
 FrontendUiEventSink g_sink = {};
 
+struct ButtonEventState {
+    uint32_t elementId = 0;
+    bool isPressed = false;
+    bool suppressClick = false;
+};
+
+ButtonEventState g_buttonStates[SCREEN32_ELEMENT_DESCRIPTOR_COUNT] = {};
+size_t g_buttonStateCount = 0;
+
 const Screen32BoundElement* find_tracked_element_by_id(uint32_t elementId) {
     return screen32_find_bound_element(g_trackedElements, g_trackedCount, elementId);
+}
+
+ButtonEventState* find_button_state(uint32_t elementId) {
+    for (size_t i = 0; i < g_buttonStateCount; ++i) {
+        if (g_buttonStates[i].elementId == elementId) {
+            return &g_buttonStates[i];
+        }
+    }
+    return nullptr;
+}
+
+void emit_button_action(uint32_t elementId, uint32_t pageId, FrontendButtonAction action) {
+    if (g_sink.onButtonEvent == nullptr) {
+        return;
+    }
+    g_sink.onButtonEvent(g_sink.userData, elementId, pageId, action);
 }
 
 bool read_element_int_value(lv_obj_t* obj, int32_t& outValue) {
@@ -62,9 +87,49 @@ void on_ui_event_cb(lv_event_t* e) {
         return;
     }
 
-    if (code == LV_EVENT_CLICKED) {
-        if (descriptor->emits_button_event && g_sink.onButtonEvent != nullptr) {
-            g_sink.onButtonEvent(g_sink.userData, elementId, pageId);
+    if (descriptor->emits_button_event) {
+        ButtonEventState* state = find_button_state(elementId);
+
+        if (code == LV_EVENT_PRESSED) {
+            if (state != nullptr) {
+                if (state->isPressed) {
+                    return;
+                }
+                state->isPressed = true;
+                state->suppressClick = false;
+            }
+            emit_button_action(elementId, pageId, FrontendButtonAction::Push);
+            return;
+        }
+
+        if (code == LV_EVENT_LONG_PRESSED || code == LV_EVENT_LONG_PRESSED_REPEAT) {
+            if (state != nullptr && !state->isPressed) {
+                return;
+            }
+            if (state != nullptr) {
+                state->suppressClick = true;
+            }
+            emit_button_action(elementId, pageId, FrontendButtonAction::Repeat);
+            return;
+        }
+
+        if (code == LV_EVENT_RELEASED) {
+            if (state != nullptr) {
+                if (!state->isPressed) {
+                    return;
+                }
+                state->isPressed = false;
+            }
+            emit_button_action(elementId, pageId, FrontendButtonAction::Pop);
+            return;
+        }
+
+        if (code == LV_EVENT_CLICKED) {
+            if (state != nullptr && state->suppressClick) {
+                state->suppressClick = false;
+                return;
+            }
+            emit_button_action(elementId, pageId, FrontendButtonAction::Click);
         }
         return;
     }
@@ -96,6 +161,7 @@ void frontend_ui_events_attach_generated(const Screen32BoundElement* trackedElem
     g_trackedElements = trackedElements;
     g_trackedCount = trackedCount;
     g_sink = sink;
+    g_buttonStateCount = 0;
 
     for (size_t i = 0; i < trackedCount; ++i) {
         const Screen32BoundElement& tracked = trackedElements[i];
@@ -104,10 +170,37 @@ void frontend_ui_events_attach_generated(const Screen32BoundElement* trackedElem
         }
 
         if (tracked.descriptor->emits_button_event) {
+            if (g_buttonStateCount < SCREEN32_ELEMENT_DESCRIPTOR_COUNT) {
+                ButtonEventState& state = g_buttonStates[g_buttonStateCount++];
+                state.elementId = tracked.elementId;
+                state.isPressed = false;
+                state.suppressClick = false;
+            }
+
             lv_obj_add_event_cb(
                 tracked.obj,
                 on_ui_event_cb,
                 LV_EVENT_CLICKED,
+                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
+            lv_obj_add_event_cb(
+                tracked.obj,
+                on_ui_event_cb,
+                LV_EVENT_PRESSED,
+                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
+            lv_obj_add_event_cb(
+                tracked.obj,
+                on_ui_event_cb,
+                LV_EVENT_RELEASED,
+                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
+            lv_obj_add_event_cb(
+                tracked.obj,
+                on_ui_event_cb,
+                LV_EVENT_LONG_PRESSED,
+                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
+            lv_obj_add_event_cb(
+                tracked.obj,
+                on_ui_event_cb,
+                LV_EVENT_LONG_PRESSED_REPEAT,
                 reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
         }
 

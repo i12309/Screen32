@@ -152,6 +152,34 @@ uint32_t normalize_color(uint32_t value) {
     return value & 0xFFFFFF;
 }
 
+ButtonAction to_proto_button_action(FrontendButtonAction action) {
+    switch (action) {
+        case FrontendButtonAction::Push:
+            return ButtonAction_PUSH;
+        case FrontendButtonAction::Pop:
+            return ButtonAction_POP;
+        case FrontendButtonAction::Repeat:
+            return ButtonAction_REPEAT;
+        case FrontendButtonAction::Click:
+        default:
+            return ButtonAction_CLICK;
+    }
+}
+
+const char* button_action_name(ButtonAction action) {
+    switch (action) {
+        case ButtonAction_PUSH:
+            return "push";
+        case ButtonAction_POP:
+            return "pop";
+        case ButtonAction_REPEAT:
+            return "repeat";
+        case ButtonAction_CLICK:
+        default:
+            return "click";
+    }
+}
+
 bool get_label_for_object(lv_obj_t* obj, lv_obj_t*& outLabel) {
     if (obj == nullptr || !lv_obj_is_valid(obj)) {
         return false;
@@ -296,22 +324,27 @@ bool hook_set_color(void* userData, void* uiObject, uint32_t bgColor, uint32_t f
     return true;
 }
 
-void on_ui_button_event(void* userData, uint32_t elementId, uint32_t pageId) {
+void on_ui_button_event(void* userData, uint32_t elementId, uint32_t pageId, FrontendButtonAction action) {
     RuntimeState* state = static_cast<RuntimeState*>(userData);
     if (state == nullptr || !state->initialized) {
         return;
     }
 
+    const ButtonAction protoAction = to_proto_button_action(action);
+
     if (state->offlineDemo) {
-        state->offlineController.onButtonEvent(elementId, pageId);
+        if (protoAction == ButtonAction_CLICK) {
+            state->offlineController.onButtonEvent(elementId, pageId);
+        }
         return;
     }
 
     SCREENLIB_LOGD(kLogTag,
-                   "tx button_event page=%lu element=%lu",
+                   "tx button_event action=%s page=%lu element=%lu",
+                   button_action_name(protoAction),
                    static_cast<unsigned long>(pageId),
                    static_cast<unsigned long>(elementId));
-    state->adapter.emitButtonEvent(elementId, pageId);
+    state->adapter.emitButtonEvent(elementId, pageId, protoAction);
 }
 
 void on_ui_object_click(void* userData, uint32_t elementId, uint32_t pageId) {

@@ -18,9 +18,19 @@ namespace demo {
  * - логику service-ответов, wiring transport runtime, правила offline demo по страницам.
  */
 
+enum class FrontendButtonAction : uint8_t {
+    Click = 0,
+    Push = 1,
+    Pop = 2,
+    Repeat = 3
+};
+
 struct FrontendUiEventSink {
     void* userData = nullptr;
-    void (*onButtonEvent)(void* userData, uint32_t elementId, uint32_t pageId) = nullptr;
+    void (*onButtonEvent)(void* userData,
+                          uint32_t elementId,
+                          uint32_t pageId,
+                          FrontendButtonAction action) = nullptr;
     void (*onInputEventInt)(void* userData, uint32_t elementId, uint32_t pageId, int32_t value) = nullptr;
     void (*onInputEventText)(void* userData, uint32_t elementId, uint32_t pageId, const char* value) = nullptr;
 };
