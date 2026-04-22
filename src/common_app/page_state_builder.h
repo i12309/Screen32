@@ -38,6 +38,15 @@ void frontend_build_element_state(const Screen32BoundElement* trackedElements,
                                   uint32_t requestId,
                                   ElementState& outState);
 
+// Собирает payload ответа ElementAttributeState для запроса одного typed-атрибута.
+void frontend_build_element_attribute_state(const Screen32BoundElement* trackedElements,
+                                            size_t trackedCount,
+                                            uint32_t requestedPageId,
+                                            uint32_t elementId,
+                                            ElementAttribute attribute,
+                                            uint32_t requestId,
+                                            ElementAttributeState& outState);
+
 } // namespace demo
 
 

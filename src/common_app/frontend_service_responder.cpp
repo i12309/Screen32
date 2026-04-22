@@ -97,6 +97,19 @@ void frontend_handle_service_request(const Envelope& env, const FrontendServiceR
             ctx.client->sendElementState(state);
             break;
         }
+        case Envelope_request_element_attribute_tag: {
+            ElementAttributeState state = ElementAttributeState_init_zero;
+            frontend_build_element_attribute_state(
+                ctx.trackedElements,
+                ctx.trackedCount,
+                env.payload.request_element_attribute.page_id,
+                env.payload.request_element_attribute.element_id,
+                env.payload.request_element_attribute.attribute,
+                env.payload.request_element_attribute.request_id,
+                state);
+            ctx.client->sendElementAttributeState(state);
+            break;
+        }
         default:
             break;
     }

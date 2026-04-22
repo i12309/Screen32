@@ -6,6 +6,20 @@
 
 #include "element_descriptors.generated.h"
 
+#if defined(__has_include)
+#if __has_include("ui/fonts.h")
+#include "ui/fonts.h"
+#define FRONTEND_EEZ_FONT_MAP_AVAILABLE 1
+#elif __has_include("../../lib/ScreenUI/eez_project/src/ui/fonts.h")
+#include "../../lib/ScreenUI/eez_project/src/ui/fonts.h"
+#define FRONTEND_EEZ_FONT_MAP_AVAILABLE 1
+#endif
+#endif
+
+#ifndef FRONTEND_EEZ_FONT_MAP_AVAILABLE
+#define FRONTEND_EEZ_FONT_MAP_AVAILABLE 0
+#endif
+
 namespace demo {
 
 namespace {
@@ -95,6 +109,78 @@ bool read_element_int_value(lv_obj_t* obj, int32_t& outValue) {
 #endif
 
     return false;
+}
+
+uint32_t to_rgb888(lv_color_t color) {
+    return lv_color_to_u32(color) & 0x00FFFFFFu;
+}
+
+ElementFont map_font_to_proto(const lv_font_t* font) {
+#if FRONTEND_EEZ_FONT_MAP_AVAILABLE
+    if (font == &ui_font_m_18) {
+        return ElementFont_ELEMENT_FONT_UI_M18;
+    }
+    if (font == &ui_font_m_20) {
+        return ElementFont_ELEMENT_FONT_UI_M20;
+    }
+    if (font == &ui_font_m_24) {
+        return ElementFont_ELEMENT_FONT_UI_M24;
+    }
+    if (font == &ui_font_m_70) {
+        return ElementFont_ELEMENT_FONT_UI_M70;
+    }
+#else
+    (void)font;
+#endif
+    return ElementFont_ELEMENT_FONT_UNKNOWN;
+}
+
+bool read_element_attribute_state(lv_obj_t* obj, ElementAttribute attribute, ElementAttributeState& outState) {
+    if (obj == nullptr || !lv_obj_is_valid(obj)) {
+        return false;
+    }
+
+    switch (attribute) {
+        case ElementAttribute_ELEMENT_ATTRIBUTE_POSITION_WIDTH:
+            outState.which_value = ElementAttributeState_int_value_tag;
+            outState.value.int_value = lv_obj_get_width(obj);
+            return true;
+        case ElementAttribute_ELEMENT_ATTRIBUTE_POSITION_HEIGHT:
+            outState.which_value = ElementAttributeState_int_value_tag;
+            outState.value.int_value = lv_obj_get_height(obj);
+            return true;
+        case ElementAttribute_ELEMENT_ATTRIBUTE_BACKGROUND_COLOR:
+            outState.which_value = ElementAttributeState_color_value_tag;
+            outState.value.color_value = to_rgb888(
+                lv_obj_get_style_bg_color(obj, LV_PART_MAIN));
+            return true;
+        case ElementAttribute_ELEMENT_ATTRIBUTE_BORDER_COLOR:
+            outState.which_value = ElementAttributeState_color_value_tag;
+            outState.value.color_value = to_rgb888(
+                lv_obj_get_style_border_color(obj, LV_PART_MAIN));
+            return true;
+        case ElementAttribute_ELEMENT_ATTRIBUTE_BORDER_WIDTH:
+            outState.which_value = ElementAttributeState_int_value_tag;
+            outState.value.int_value = lv_obj_get_style_border_width(obj, LV_PART_MAIN);
+            return true;
+        case ElementAttribute_ELEMENT_ATTRIBUTE_TEXT_COLOR:
+            outState.which_value = ElementAttributeState_color_value_tag;
+            outState.value.color_value = to_rgb888(
+                lv_obj_get_style_text_color(obj, LV_PART_MAIN));
+            return true;
+        case ElementAttribute_ELEMENT_ATTRIBUTE_TEXT_FONT: {
+            const lv_font_t* font = lv_obj_get_style_text_font(obj, LV_PART_MAIN);
+            if (font == nullptr) {
+                return false;
+            }
+            outState.which_value = ElementAttributeState_font_value_tag;
+            outState.value.font_value = map_font_to_proto(font);
+            return true;
+        }
+        case ElementAttribute_ELEMENT_ATTRIBUTE_UNKNOWN:
+        default:
+            return false;
+    }
 }
 
 uint32_t resolve_page_id(uint32_t requestedPageId) {
@@ -190,6 +276,29 @@ void frontend_build_element_state(const Screen32BoundElement* trackedElements,
 
     outState.found = false;
     outState.has_element = false;
+}
+
+void frontend_build_element_attribute_state(const Screen32BoundElement* trackedElements,
+                                            size_t trackedCount,
+                                            uint32_t requestedPageId,
+                                            uint32_t elementId,
+                                            ElementAttribute attribute,
+                                            uint32_t requestId,
+                                            ElementAttributeState& outState) {
+    ElementAttributeState zeroState = ElementAttributeState_init_zero;
+    outState = zeroState;
+    outState.request_id = requestId;
+    outState.page_id = resolve_page_id(requestedPageId);
+    outState.element_id = elementId;
+    outState.attribute = attribute;
+
+    const Screen32BoundElement* tracked = find_tracked_by_id(trackedElements, trackedCount, elementId);
+    if (tracked == nullptr || tracked->pageId != outState.page_id) {
+        outState.found = false;
+        return;
+    }
+
+    outState.found = read_element_attribute_state(tracked->obj, attribute, outState);
 }
 
 } // namespace demo
