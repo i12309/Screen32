@@ -1,8 +1,13 @@
 #include "common_app/frontend_service_responder.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "common_app/page_state_builder.h"
+
+#if defined(ARDUINO)
+#include <Arduino.h>
+#endif
 
 namespace demo {
 
@@ -24,13 +29,33 @@ void copy_text_safe(char* dst, size_t dstSize, const char* src) {
 
 DeviceInfo frontend_build_device_info(FrontendMode mode) {
     DeviceInfo info = DeviceInfo_init_zero;
+    char deviceId[sizeof(info.device_id)] = {0};
+    char instanceId[sizeof(info.instance_id)] = {0};
+
+#if defined(ARDUINO)
+    const uint64_t mac = ESP.getEfuseMac();
+    snprintf(deviceId,
+             sizeof(deviceId),
+             "%02X:%02X:%02X:%02X:%02X:%02X",
+             static_cast<unsigned int>((mac >> 40) & 0xFFU),
+             static_cast<unsigned int>((mac >> 32) & 0xFFU),
+             static_cast<unsigned int>((mac >> 24) & 0xFFU),
+             static_cast<unsigned int>((mac >> 16) & 0xFFU),
+             static_cast<unsigned int>((mac >> 8) & 0xFFU),
+             static_cast<unsigned int>(mac & 0xFFU));
+    snprintf(instanceId, sizeof(instanceId), "%s-%d", ESP.getChipModel(), ESP.getChipRevision());
+#else
+    copy_text_safe(deviceId, sizeof(deviceId), "ip-address");
+    copy_text_safe(instanceId, sizeof(instanceId), "screen32");
+#endif
+
     info.protocol_version = 1;
-    copy_text_safe(info.fw_version, sizeof(info.fw_version), "screen32-frontend");
-    copy_text_safe(info.ui_version, sizeof(info.ui_version), "eez-lvgl");
-    copy_text_safe(info.screen_type, sizeof(info.screen_type), "screen32");
+    copy_text_safe(info.fw_version, sizeof(info.fw_version), "1");
+    copy_text_safe(info.ui_version, sizeof(info.ui_version), "1");
+    copy_text_safe(info.screen_type, sizeof(info.screen_type), "JC8048W550C");
     copy_text_safe(info.client_type, sizeof(info.client_type), frontend_mode_name(mode));
-    copy_text_safe(info.device_id, sizeof(info.device_id), "screen32-demo");
-    copy_text_safe(info.instance_id, sizeof(info.instance_id), "default");
+    copy_text_safe(info.device_id, sizeof(info.device_id), deviceId);
+    copy_text_safe(info.instance_id, sizeof(info.instance_id), instanceId);
     info.capabilities = 0;
     return info;
 }
