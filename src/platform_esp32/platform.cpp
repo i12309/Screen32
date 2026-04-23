@@ -138,7 +138,7 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
         "  \"offline_timeout_ms\": 30000,\n"
         "  \"heartbeatPeriodMs\": 0,\n"
         "  \"firstOnlinePage\": 1,\n"
-        "  \"firstOfflinePage\": 1\n"
+        "  \"firstOfflinePage\": 0\n"
         "}\n";
 
     strncpy(outJson, json, outSize - 1);

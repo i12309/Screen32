@@ -137,12 +137,14 @@ const char* envelope_payload_name(pb_size_t whichPayload) {
             return "element_state";
         case Envelope_set_element_attribute_tag:
             return "set_element_attribute";
-        case Envelope_set_element_attribute_batch_tag:
-            return "set_element_attribute_batch";
         case Envelope_request_element_attribute_tag:
             return "request_element_attribute";
         case Envelope_element_attribute_state_tag:
             return "element_attribute_state";
+        case Envelope_page_snapshot_tag:
+            return "page_snapshot";
+        case Envelope_attribute_changed_tag:
+            return "attribute_changed";
         default:
             return "unknown";
     }
@@ -456,11 +458,6 @@ void on_client_event(const Envelope& env, screenlib::client::ScreenClient::Event
                            "rx set_element_attribute element=%lu attr=%d",
                            static_cast<unsigned long>(env.payload.set_element_attribute.element_id),
                            static_cast<int>(env.payload.set_element_attribute.attribute));
-            break;
-        case Envelope_set_element_attribute_batch_tag:
-            SCREENLIB_LOGD(kLogTag,
-                           "rx set_element_attribute_batch count=%u",
-                           static_cast<unsigned>(env.payload.set_element_attribute_batch.attributes_count));
             break;
         case Envelope_heartbeat_tag:
             break;

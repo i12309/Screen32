@@ -33,12 +33,23 @@ git submodule update --init --recursive
 
 ## Offline demo
 
-Стартовая offline-страница по умолчанию — `scr_LOAD` с id `1`.
+Стартовая offline-страница по умолчанию — `scr_LOAD0` с id `1`.
 Это значение задано в `demo_web/frontend_config.json` через:
 
 ```json
 "firstOfflinePage": 1
 ```
+
+Основной сценарий demo теперь задается отдельно в файле:
+
+```cpp
+src/demo/offline_demo_scenario.cpp
+```
+
+Там задаются:
+- список страниц, которые участвуют в demo, и их порядок для `Next`/`Prev`;
+- маршруты конкретных кнопок;
+- кнопки и страницы, которые должны работать как `Back()` по истории переходов.
 
 ## Сборка
 

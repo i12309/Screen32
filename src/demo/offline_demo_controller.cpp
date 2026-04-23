@@ -3,14 +3,13 @@
 #include <lvgl.h>
 
 #include "element_descriptors.generated.h"
-#include "ui_object_map.generated.h"
 #include "page_descriptors.generated.h"
+#include "ui_object_map.generated.h"
 
 namespace demo {
 
 namespace {
 
-constexpr size_t kMaxButtonsPerPage = 32;
 bool is_known_page_id(uint32_t pageId) {
     return screen32_find_page_descriptor(pageId) != nullptr;
 }
@@ -34,6 +33,7 @@ void OfflineDemoController::reset() {
     _pageOrderCount = 0;
     _bindingCount = 0;
     _pageTapBindingCount = 0;
+    _historyCount = 0;
     _currentPageId = 0;
     _trackedElements = nullptr;
     _trackedCount = 0;
@@ -70,6 +70,10 @@ bool OfflineDemoController::bindButtonToPrev(uint32_t elementId) {
     return setBinding(elementId, BindingActionType::Prev, 0);
 }
 
+bool OfflineDemoController::bindButtonToBack(uint32_t elementId) {
+    return setBinding(elementId, BindingActionType::Back, 0);
+}
+
 bool OfflineDemoController::bindButtonToGoto(uint32_t elementId, uint32_t targetPageId) {
     if (!is_known_page_id(targetPageId)) {
         return false;
@@ -85,6 +89,10 @@ bool OfflineDemoController::bindPageTapToPrev(uint32_t sourcePageId) {
     return setPageTapBinding(sourcePageId, BindingActionType::Prev, 0);
 }
 
+bool OfflineDemoController::bindPageTapToBack(uint32_t sourcePageId) {
+    return setPageTapBinding(sourcePageId, BindingActionType::Back, 0);
+}
+
 bool OfflineDemoController::bindPageTapToGoto(uint32_t sourcePageId, uint32_t targetPageId) {
     if (!is_known_page_id(targetPageId)) {
         return false;
@@ -92,63 +100,63 @@ bool OfflineDemoController::bindPageTapToGoto(uint32_t sourcePageId, uint32_t ta
     return setPageTapBinding(sourcePageId, BindingActionType::Goto, targetPageId);
 }
 
-bool OfflineDemoController::configureDefaultDemo() {
-    uint32_t pageOrder[kMaxPages] = {};
-    const size_t availablePageCount = screen32_page_descriptor_count();
-    if (availablePageCount == 0 || availablePageCount > kMaxPages) {
+bool OfflineDemoController::configureScenario(const OfflineDemoScenario& scenario) {
+    if (scenario.pageOrder == nullptr || scenario.pageOrderCount == 0) {
         return false;
     }
 
-    for (size_t i = 0; i < availablePageCount; ++i) {
-        pageOrder[i] = g_screen32_page_descriptors[i].page_id;
-    }
-
-    if (!setPageOrder(pageOrder, availablePageCount)) {
+    if (!setPageOrder(scenario.pageOrder, scenario.pageOrderCount)) {
         return false;
     }
 
     bool ok = true;
 
-    for (size_t pageIndex = 0; pageIndex < availablePageCount; ++pageIndex) {
-        const uint32_t pageId = pageOrder[pageIndex];
-
-        uint32_t pageButtons[kMaxButtonsPerPage] = {};
-        size_t pageButtonCount = 0;
-
-        const size_t elementCount = screen32_element_descriptor_count();
-        for (size_t i = 0; i < elementCount; ++i) {
-            const Screen32ElementDescriptor& descriptor = g_screen32_element_descriptors[i];
-            if (descriptor.page_id != pageId) {
-                continue;
-            }
-
-            if (descriptor.emits_button_event && pageButtonCount < kMaxButtonsPerPage) {
-                pageButtons[pageButtonCount++] = descriptor.element_id;
-            }
+    for (size_t i = 0; i < scenario.buttonRouteCount; ++i) {
+        const OfflineDemoButtonRoute& route = scenario.buttonRoutes[i];
+        switch (route.action) {
+            case OfflineDemoNavigationAction::Next:
+                ok = bindButtonToNext(route.elementId) && ok;
+                break;
+            case OfflineDemoNavigationAction::Prev:
+                ok = bindButtonToPrev(route.elementId) && ok;
+                break;
+            case OfflineDemoNavigationAction::Back:
+                ok = bindButtonToBack(route.elementId) && ok;
+                break;
+            case OfflineDemoNavigationAction::Goto:
+            default:
+                ok = bindButtonToGoto(route.elementId, route.targetPageId) && ok;
+                break;
         }
+    }
 
-        // Rules:
-        // 1) No buttons on page -> any click goes to next page.
-        // 2) At least one button -> first button goes prev.
-        // 3) Any other element (including 2nd+ buttons) goes next.
-        if (pageButtonCount == 0) {
-            ok = bindPageTapToNext(pageId) && ok;
-            continue;
+    for (size_t i = 0; i < scenario.pageTapRouteCount; ++i) {
+        const OfflineDemoPageTapRoute& route = scenario.pageTapRoutes[i];
+        switch (route.action) {
+            case OfflineDemoNavigationAction::Next:
+                ok = bindPageTapToNext(route.sourcePageId) && ok;
+                break;
+            case OfflineDemoNavigationAction::Prev:
+                ok = bindPageTapToPrev(route.sourcePageId) && ok;
+                break;
+            case OfflineDemoNavigationAction::Back:
+                ok = bindPageTapToBack(route.sourcePageId) && ok;
+                break;
+            case OfflineDemoNavigationAction::Goto:
+            default:
+                ok = bindPageTapToGoto(route.sourcePageId, route.targetPageId) && ok;
+                break;
         }
-
-        ok = bindButtonToPrev(pageButtons[0]) && ok;
-        for (size_t i = 1; i < pageButtonCount; ++i) {
-            ok = bindButtonToNext(pageButtons[i]) && ok;
-        }
-        ok = bindPageTapToNext(pageId) && ok;
     }
 
     return ok;
 }
 
+bool OfflineDemoController::configureDefaultDemo() {
+    return configureScenario(screen32_default_offline_demo_scenario());
+}
+
 bool OfflineDemoController::start(uint32_t startPageId) {
-    // ƒержим demo-правила самодостаточными: если вызывающий код не задал свой пор€док и bindings,
-    // контроллер примен€ет встроенные настройки до первого запуска.
     if (_pageOrderCount == 0) {
         if (!configureDefaultDemo()) {
             return false;
@@ -159,7 +167,8 @@ bool OfflineDemoController::start(uint32_t startPageId) {
     if (!pickStartPage(startPageId, resolvedPageId)) {
         return false;
     }
-    return showPage(resolvedPageId);
+
+    return showPage(resolvedPageId, false);
 }
 
 bool OfflineDemoController::onButtonEvent(uint32_t elementId, uint32_t sourcePageId) {
@@ -268,6 +277,14 @@ bool OfflineDemoController::applyAction(BindingActionType action,
         return false;
     }
 
+    if (action == BindingActionType::Back) {
+        uint32_t previousPageId = 0;
+        if (!popHistory(previousPageId)) {
+            return false;
+        }
+        return showPage(previousPageId, false);
+    }
+
     if (action == BindingActionType::Goto) {
         return showPage(targetPageId);
     }
@@ -289,12 +306,15 @@ bool OfflineDemoController::applyAction(BindingActionType action,
     return showPage(_pageOrder[prevIndex]);
 }
 
-bool OfflineDemoController::showPage(uint32_t pageId) {
+bool OfflineDemoController::showPage(uint32_t pageId, bool rememberCurrentPage) {
     if (_adapter == nullptr) {
         return false;
     }
     if (!_adapter->showPage(pageId)) {
         return false;
+    }
+    if (rememberCurrentPage && _currentPageId != 0 && _currentPageId != pageId) {
+        pushHistory(_currentPageId);
     }
     _currentPageId = pageId;
     return true;
@@ -363,6 +383,32 @@ bool OfflineDemoController::isButtonInsideBar(uint32_t buttonElementId,
     return false;
 }
 
+void OfflineDemoController::pushHistory(uint32_t pageId) {
+    if (pageId == 0) {
+        return;
+    }
+
+    if (_historyCount > 0 && _history[_historyCount - 1] == pageId) {
+        return;
+    }
+
+    if (_historyCount >= kMaxHistoryDepth) {
+        for (size_t i = 1; i < _historyCount; ++i) {
+            _history[i - 1] = _history[i];
+        }
+        _historyCount = kMaxHistoryDepth - 1;
+    }
+
+    _history[_historyCount++] = pageId;
+}
+
+bool OfflineDemoController::popHistory(uint32_t& outPageId) {
+    if (_historyCount == 0) {
+        return false;
+    }
+
+    outPageId = _history[--_historyCount];
+    return true;
+}
+
 } // namespace demo
-
-

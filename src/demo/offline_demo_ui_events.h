@@ -15,7 +15,7 @@ void offline_demo_ui_events_init(const Screen32BoundElement* trackedElements,
                                  OfflineDemoObjectClickHandler handler,
                                  void* userData);
 
-// Включает/выключает demo-only обработку "тап по объекту/странице".
+// Включает или выключает demo-only обработку тапа по объекту или странице.
 void offline_demo_ui_events_set_enabled(bool enabled);
 
 } // namespace demo

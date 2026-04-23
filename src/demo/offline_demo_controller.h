@@ -1,8 +1,9 @@
-﻿#pragma once
+#pragma once
 
 #include <stddef.h>
 #include <stdint.h>
 
+#include "demo/offline_demo_scenario.h"
 #include "lvgl_eez/EezLvglAdapter.h"
 
 namespace demo {
@@ -11,13 +12,13 @@ struct Screen32BoundElement;
 
 /*
  * Роль файла:
- * - Содержит все локальное поведение offline demo: порядок страниц, привязки и правила next/prev/goto.
+ * - Исполняет переходы offline demo по заранее заданному сценарию.
  * Вызывается:
  * - из frontend_runtime в режиме offline_demo и из offline-веток обработки UI-событий.
  * Должен содержать:
- * - только переходы навигации/состояний offline demo.
+ * - только runtime-логику навигации offline demo.
  * НЕ должен содержать:
- * - логику transport/proto/service-ответов.
+ * - декларацию demo-маршрутов, transport/proto/service-ответов.
  */
 
 class OfflineDemoController {
@@ -28,7 +29,7 @@ public:
     void init(screenlib::adapter::EezLvglAdapter* adapter,
               const Screen32BoundElement* trackedElements,
               size_t trackedCount);
-    // Сбрасывает текущую страницу, порядок страниц и привязки.
+    // Сбрасывает текущую страницу, порядок страниц, историю и привязки.
     void reset();
 
     // Задает упорядоченный список страниц для переходов next/prev.
@@ -37,13 +38,18 @@ public:
     bool bindButtonToNext(uint32_t elementId);
     // Привязывает id кнопки к переходу на предыдущую страницу по порядку.
     bool bindButtonToPrev(uint32_t elementId);
+    // Привязывает id кнопки к возврату на предыдущую реально посещенную страницу.
+    bool bindButtonToBack(uint32_t elementId);
     // Привязывает id кнопки к явной целевой странице.
     bool bindButtonToGoto(uint32_t elementId, uint32_t targetPageId);
-    // Привязывает клик по любому объекту страницы к переходу next/prev/goto.
+    // Привязывает клик по любому объекту страницы к переходу next/prev/back/goto.
     bool bindPageTapToNext(uint32_t sourcePageId);
     bool bindPageTapToPrev(uint32_t sourcePageId);
+    bool bindPageTapToBack(uint32_t sourcePageId);
     bool bindPageTapToGoto(uint32_t sourcePageId, uint32_t targetPageId);
-    // Применяет встроенный порядок demo-страниц и привязки по умолчанию.
+    // Применяет полностью заданный сценарий demo.
+    bool configureScenario(const OfflineDemoScenario& scenario);
+    // Применяет встроенный сценарий demo по умолчанию.
     bool configureDefaultDemo();
 
     // Запускает demo-поток с requested page id или с первой страницы в порядке как fallback.
@@ -64,7 +70,8 @@ private:
     enum class BindingActionType : uint8_t {
         Next = 1,
         Prev = 2,
-        Goto = 3
+        Goto = 3,
+        Back = 4
     };
 
     struct Binding {
@@ -82,6 +89,7 @@ private:
     static constexpr size_t kMaxPages = 64;
     static constexpr size_t kMaxBindings = 128;
     static constexpr size_t kMaxPageTapBindings = 64;
+    static constexpr size_t kMaxHistoryDepth = 64;
 
     screenlib::adapter::EezLvglAdapter* _adapter = nullptr;
     const Screen32BoundElement* _trackedElements = nullptr;
@@ -92,6 +100,8 @@ private:
     size_t _bindingCount = 0;
     PageTapBinding _pageTapBindings[kMaxPageTapBindings] = {};
     size_t _pageTapBindingCount = 0;
+    uint32_t _history[kMaxHistoryDepth] = {};
+    size_t _historyCount = 0;
     uint32_t _currentPageId = 0;
 
     bool setBinding(uint32_t elementId, BindingActionType action, uint32_t targetPageId);
@@ -99,13 +109,13 @@ private:
     bool setPageTapBinding(uint32_t sourcePageId, BindingActionType action, uint32_t targetPageId);
     const PageTapBinding* findPageTapBinding(uint32_t sourcePageId) const;
     bool applyAction(BindingActionType action, uint32_t targetPageId, uint32_t sourcePageId);
-    bool showPage(uint32_t pageId);
+    bool showPage(uint32_t pageId, bool rememberCurrentPage = true);
     int findPageIndex(uint32_t pageId) const;
     bool pickStartPage(uint32_t requestedPageId, uint32_t& outPageId) const;
     const Screen32BoundElement* findTrackedElement(uint32_t elementId) const;
     bool isButtonInsideBar(uint32_t buttonElementId, const uint32_t* barElementIds, size_t barCount) const;
+    void pushHistory(uint32_t pageId);
+    bool popHistory(uint32_t& outPageId);
 };
 
 } // namespace demo
-
-
