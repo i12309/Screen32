@@ -18,4 +18,7 @@
 #define LV_USE_PERF_MONITOR 0
 #define LV_USE_MEM_MONITOR 0
 
+// Экран Keyboard из EEZ использует встроенный шрифт Montserrat 26.
+//#define LV_FONT_MONTSERRAT_26 1
+
 #endif /* LV_CONF_H */

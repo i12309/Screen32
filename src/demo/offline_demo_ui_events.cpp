@@ -38,6 +38,65 @@ const Screen32BoundElement* find_tracked_element_by_obj(const lv_obj_t* obj) {
     return nullptr;
 }
 
+bool is_descendant_of(lv_obj_t* obj, lv_obj_t* ancestor) {
+    if (obj == nullptr || ancestor == nullptr) {
+        return false;
+    }
+
+    lv_obj_t* current = obj;
+    while (current != nullptr && lv_obj_is_valid(current)) {
+        if (current == ancestor) {
+            return true;
+        }
+        current = lv_obj_get_parent(current);
+    }
+
+    return false;
+}
+
+const Screen32BoundElement* find_keyboard_element_by_target(lv_obj_t* obj) {
+    if (obj == nullptr) {
+        return nullptr;
+    }
+
+    for (size_t i = 0; i < g_trackedCount; ++i) {
+        const Screen32BoundElement& tracked = g_trackedElements[i];
+        if (tracked.obj == nullptr || tracked.descriptor == nullptr) {
+            continue;
+        }
+        if (tracked.descriptor->element_type != TYPE_KEYBOARD) {
+            continue;
+        }
+        if (is_descendant_of(obj, tracked.obj)) {
+            return &tracked;
+        }
+    }
+
+    return nullptr;
+}
+
+bool should_emit_demo_click(const Screen32BoundElement* tracked,
+                            lv_obj_t* target,
+                            lv_event_code_t code,
+                            uint32_t pageId) {
+    const Screen32BoundElement* keyboardTracked = find_keyboard_element_by_target(target);
+    const bool keyboardTarget = keyboardTracked != nullptr;
+
+    if (tracked != nullptr && tracked->descriptor != nullptr &&
+        tracked->descriptor->element_type == TYPE_KEYBOARD) {
+        return code == LV_EVENT_READY;
+    }
+
+    if (pageId == scr_KEYBOARD) {
+        if (keyboardTarget) {
+            return code == LV_EVENT_READY;
+        }
+        return false;
+    }
+
+    return code == LV_EVENT_CLICKED;
+}
+
 lv_obj_t* find_page_root_by_id(uint32_t pageId) {
     switch (pageId) {
         case scr_LOAD:
@@ -94,6 +153,9 @@ void on_demo_object_click_cb(lv_event_t* e) {
     lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(e));
 
     if (elementId == kSyntheticPageTapElementId) {
+        if (!should_emit_demo_click(nullptr, target, code, pageId)) {
+            return;
+        }
         // Do not duplicate clicks for tracked objects with dedicated handlers.
         if (find_tracked_element_by_obj(target) != nullptr) {
             return;
@@ -107,6 +169,9 @@ void on_demo_object_click_cb(lv_event_t* e) {
         return;
     }
     if (tracked->descriptor->emits_button_event) {
+        return;
+    }
+    if (!should_emit_demo_click(tracked, target, code, pageId)) {
         return;
     }
 
@@ -170,6 +235,13 @@ void attach_tracked_object_click_handlers() {
             on_demo_object_click_cb,
             LV_EVENT_CLICKED,
             reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
+        if (tracked.descriptor->element_type == TYPE_KEYBOARD) {
+            lv_obj_add_event_cb(
+                tracked.obj,
+                on_demo_object_click_cb,
+                LV_EVENT_READY,
+                reinterpret_cast<void*>(static_cast<uintptr_t>(tracked.elementId)));
+        }
     }
 
     g_trackedObjectClickHandlersAttached = true;

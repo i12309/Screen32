@@ -18,7 +18,6 @@ constexpr uint32_t kDefaultPageOrder[] = {
     scr_INIT,
     scr_WAIT,
     scr_KEYBOARD,
-    scr_KEYBOARD_OLD,
     scr_SERVICE,
     scr_SERVICE2,
     scr_DEF_PAGE,
@@ -114,7 +113,7 @@ constexpr OfflineDemoButtonRoute kDefaultButtonRoutes[] = {
 constexpr OfflineDemoPageTapRoute kDefaultPageTapRoutes[] = {
     {scr_LOAD0, OfflineDemoNavigationAction::Next, 0},
     {scr_LOAD, OfflineDemoNavigationAction::Next, 0},
-    {scr_TASK_PROCESS, OfflineDemoNavigationAction::Back, 0},
+    //{scr_TASK_PROCESS, OfflineDemoNavigationAction::Back, 0},
     {scr_WAIT, OfflineDemoNavigationAction::Next, 0},
     {scr_KEYBOARD, OfflineDemoNavigationAction::Back, 0},
 };
