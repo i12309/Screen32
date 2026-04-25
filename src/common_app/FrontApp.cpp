@@ -30,6 +30,7 @@ constexpr size_t kMaxObjectBindings = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
 constexpr size_t kMaxPageBindings = SCREEN32_PAGE_DESCRIPTOR_COUNT;
 constexpr size_t kMaxTrackedElements = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
 constexpr uint32_t kHelloRetryPeriodMs = 5000;
+constexpr uint32_t kWaitLogPeriodMs = 5000;
 constexpr const char* kLogTag = "frontapp";
 
 struct State {
@@ -42,6 +43,8 @@ struct State {
     uint32_t currentPageId = 0;
     uint32_t lastHeartbeatMs = 0;
     uint32_t lastHelloMs = 0;
+    uint32_t waitStartMs = 0;
+    uint32_t lastWaitLogMs = 0;
 
     std::unique_ptr<ITransport> transport;
     std::unique_ptr<screenlib::client::ScreenClient> client;
@@ -615,6 +618,8 @@ bool start_online_mode(const demo::FrontendConfig& config) {
 
     const bool helloOk = g_state.client->sendHello(build_device_info(g_state.config.mode));
     g_state.lastHelloMs = ::platform_tick_ms();
+    g_state.waitStartMs = g_state.lastHelloMs;
+    g_state.lastWaitLogMs = g_state.waitStartMs;
     SCREENLIB_LOGI(kLogTag, "hello sent: %s", helloOk ? "ok" : "fail");
     return true;
 }
@@ -627,6 +632,8 @@ bool start_offline_demo_mode(const demo::FrontendConfig& config) {
     g_state.online = false;
     g_state.backendConnected = false;
     g_state.currentSessionId = 0;
+    g_state.waitStartMs = 0;
+    g_state.lastWaitLogMs = 0;
 
     g_state.offlineController.init(&g_state.adapter, g_state.tracked, g_state.trackedCount);
     const uint32_t startPage = resolve_offline_start_page(config);
@@ -704,6 +711,28 @@ void tick() {
             const bool helloOk = g_state.client->sendHello(build_device_info(g_state.config.mode));
             g_state.lastHelloMs = now;
             SCREENLIB_LOGD(kLogTag, "hello retry: %s", helloOk ? "ok" : "fail");
+        }
+
+        if (!g_state.backendConnected && g_state.config.offlineTimeoutMs > 0) {
+            if ((now - g_state.lastWaitLogMs) >= kWaitLogPeriodMs) {
+                const uint32_t elapsedSec = (now - g_state.waitStartMs) / 1000U;
+                SCREENLIB_LOGI(kLogTag,
+                               "waiting backend... %lus elapsed",
+                               static_cast<unsigned long>(elapsedSec));
+                g_state.lastWaitLogMs = now;
+            }
+
+            if ((now - g_state.waitStartMs) >= g_state.config.offlineTimeoutMs) {
+                SCREENLIB_LOGW(kLogTag, "fallback to demo: backend wait timeout reached");
+                if (!switch_to_offline_demo()) {
+                    g_state.waitStartMs = now;
+                    g_state.lastWaitLogMs = now;
+                    SCREENLIB_LOGI(kLogTag,
+                                   "backend still unavailable; continue waiting (next timeout=%lus)",
+                                   static_cast<unsigned long>(g_state.config.offlineTimeoutMs / 1000U));
+                }
+                return;
+            }
         }
 
         if (g_state.config.heartbeatPeriodMs > 0 &&
