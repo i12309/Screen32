@@ -51,6 +51,28 @@ src/demo/offline_demo_scenario.cpp
 - маршруты конкретных кнопок;
 - кнопки и страницы, которые должны работать как `Back()` по истории переходов.
 
+## Логи обмена
+
+Логи входящих и исходящих protocol-сообщений включаются ключом `log_traffic` в frontend-конфиге:
+
+```json
+"log_traffic": 1
+```
+
+Чтобы выключить их, задайте:
+
+```json
+"log_traffic": 0
+```
+
+В мониторе они идут с тегом `frontapp.traffic` и направлением `RX`/`TX`, например:
+
+```text
+TX hello device=... type=esp32
+RX show_page page=1 session=42
+TX button_event element=10 page=1 session=42 action=click
+```
+
 ## Сборка
 
 ESP32:

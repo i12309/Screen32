@@ -39,6 +39,8 @@ struct FrontendConfig {
     uint32_t offlineTimeoutMs = 30000;
     // Heartbeat period in online mode (ms). 0 disables heartbeat sending.
     uint32_t heartbeatPeriodMs = 1000;
+    // Логи входящих и исходящих protocol Envelope. JSON: log_traffic.
+    bool logTraffic = true;
 };
 
 // Возвращает конфиг frontend по умолчанию для текущей платформы.

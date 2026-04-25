@@ -81,6 +81,11 @@ public:
         _serial = serial;
         _serial->begin(baud, SERIAL_8N1, rxPin, txPin);
         _started = true;
+        SCREENLIB_LOGI("platform.esp32",
+                       "uart transport begin baud=%lu rx=%d tx=%d",
+                       static_cast<unsigned long>(baud),
+                       static_cast<int>(rxPin),
+                       static_cast<int>(txPin));
         return true;
     }
 
@@ -134,9 +139,10 @@ bool platform_load_frontend_config_json(char* outJson, size_t outSize) {
         "    \"rxPin\": 17,\n"
         "    \"txPin\": 18\n"
         "  },\n"
-        "  \"offline_demo\": 1,\n"
+        "  \"offline_demo\": 0,\n"
         "  \"offline_timeout_ms\": 30000,\n"
         "  \"heartbeatPeriodMs\": 0,\n"
+        "  \"log_traffic\": 1,\n"
         "  \"firstOnlinePage\": 1,\n"
         "  \"firstOfflinePage\": 0\n"
         "}\n";

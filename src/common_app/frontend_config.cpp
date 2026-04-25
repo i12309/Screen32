@@ -158,6 +158,7 @@ FrontendConfig frontend_default_config() {
     cfg.firstOfflinePage = 1;
     cfg.offlineTimeoutMs = 30000;
     cfg.heartbeatPeriodMs = 1000;
+    cfg.logTraffic = true;
     copy_string(cfg.transport.url, sizeof(cfg.transport.url), "ws://127.0.0.1:81");
     cfg.transport.baud = 115200;
     cfg.transport.rxPin = 44;
@@ -244,6 +245,20 @@ bool frontend_parse_config_json(const char* json, FrontendConfig& outConfig) {
         int32_t heartbeatValue = 0;
         if (parse_json_int_value(heartbeatPos, heartbeatValue) && heartbeatValue >= 0) {
             cfg.heartbeatPeriodMs = static_cast<uint32_t>(heartbeatValue);
+        }
+    }
+
+    const char* logTrafficPos = find_json_key_value(json, "log_traffic");
+    if (logTrafficPos == nullptr) {
+        logTrafficPos = find_json_key_value(json, "traffic_log");
+    }
+    if (logTrafficPos == nullptr) {
+        logTrafficPos = find_json_key_value(json, "protocol_log");
+    }
+    if (logTrafficPos != nullptr) {
+        bool value = false;
+        if (parse_json_bool_like_value(logTrafficPos, value)) {
+            cfg.logTraffic = value;
         }
     }
 

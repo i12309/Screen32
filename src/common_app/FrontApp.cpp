@@ -32,6 +32,7 @@ constexpr size_t kMaxTrackedElements = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
 constexpr uint32_t kHelloRetryPeriodMs = 5000;
 constexpr uint32_t kWaitLogPeriodMs = 5000;
 constexpr const char* kLogTag = "frontapp";
+constexpr const char* kTrafficLogTag = "frontapp.traffic";
 
 struct State {
     demo::FrontendConfig config = demo::frontend_default_config();
@@ -57,6 +58,7 @@ struct State {
 
     demo::Screen32BoundElement tracked[kMaxTrackedElements] = {};
     size_t trackedCount = 0;
+    Envelope txEnvelope = Envelope_init_zero;
 
     State()
         : objectMap(objectBindings, kMaxObjectBindings, pageBindings, kMaxPageBindings),
@@ -124,12 +126,344 @@ const char* envelope_payload_name(pb_size_t whichPayload) {
         case Envelope_heartbeat_tag: return "heartbeat";
         case Envelope_hello_tag: return "hello";
         case Envelope_request_device_info_tag: return "request_device_info";
+        case Envelope_device_info_tag: return "device_info";
         case Envelope_request_current_page_tag: return "request_current_page";
+        case Envelope_current_page_tag: return "current_page";
+        case Envelope_request_page_state_tag: return "request_page_state";
+        case Envelope_page_state_tag: return "page_state";
+        case Envelope_request_element_state_tag: return "request_element_state";
+        case Envelope_element_state_tag: return "element_state";
         case Envelope_set_element_attribute_tag: return "set_element_attribute";
+        case Envelope_request_element_attribute_tag: return "request_element_attribute";
+        case Envelope_element_attribute_state_tag: return "element_attribute_state";
         case Envelope_page_snapshot_tag: return "page_snapshot";
         case Envelope_attribute_changed_tag: return "attribute_changed";
         default: return "unknown";
     }
+}
+
+const char* button_action_name(ButtonAction action) {
+    switch (action) {
+        case ButtonAction_PUSH: return "push";
+        case ButtonAction_POP: return "pop";
+        case ButtonAction_REPEAT: return "repeat";
+        case ButtonAction_CLICK:
+        default:
+            return "click";
+    }
+}
+
+void describe_attribute_value(const ElementAttributeValue& value, char* out, size_t outSize) {
+    if (out == nullptr || outSize == 0) {
+        return;
+    }
+
+    switch (value.which_value) {
+        case ElementAttributeValue_int_value_tag:
+            snprintf(out,
+                     outSize,
+                     "attr=%d int=%ld",
+                     static_cast<int>(value.attribute),
+                     static_cast<long>(value.value.int_value));
+            break;
+        case ElementAttributeValue_color_value_tag:
+            snprintf(out,
+                     outSize,
+                     "attr=%d color=#%06lX",
+                     static_cast<int>(value.attribute),
+                     static_cast<unsigned long>(value.value.color_value & 0xFFFFFFU));
+            break;
+        case ElementAttributeValue_font_value_tag:
+            snprintf(out,
+                     outSize,
+                     "attr=%d font=%d",
+                     static_cast<int>(value.attribute),
+                     static_cast<int>(value.value.font_value));
+            break;
+        case ElementAttributeValue_bool_value_tag:
+            snprintf(out,
+                     outSize,
+                     "attr=%d bool=%d",
+                     static_cast<int>(value.attribute),
+                     value.value.bool_value ? 1 : 0);
+            break;
+        case ElementAttributeValue_string_value_tag:
+            snprintf(out,
+                     outSize,
+                     "attr=%d text=\"%s\"",
+                     static_cast<int>(value.attribute),
+                     value.value.string_value);
+            break;
+        default:
+            snprintf(out, outSize, "attr=%d value=<none>", static_cast<int>(value.attribute));
+            break;
+    }
+}
+
+void describe_set_attribute_value(const SetElementAttribute& cmd, char* out, size_t outSize) {
+    if (out == nullptr || outSize == 0) {
+        return;
+    }
+
+    switch (cmd.which_value) {
+        case SetElementAttribute_int_value_tag:
+            snprintf(out, outSize, "int=%ld", static_cast<long>(cmd.value.int_value));
+            break;
+        case SetElementAttribute_color_value_tag:
+            snprintf(out,
+                     outSize,
+                     "color=#%06lX",
+                     static_cast<unsigned long>(cmd.value.color_value & 0xFFFFFFU));
+            break;
+        case SetElementAttribute_font_value_tag:
+            snprintf(out, outSize, "font=%d", static_cast<int>(cmd.value.font_value));
+            break;
+        case SetElementAttribute_bool_value_tag:
+            snprintf(out, outSize, "bool=%d", cmd.value.bool_value ? 1 : 0);
+            break;
+        case SetElementAttribute_string_value_tag:
+            snprintf(out, outSize, "text=\"%s\"", cmd.value.string_value);
+            break;
+        default:
+            snprintf(out, outSize, "value=<none>");
+            break;
+    }
+}
+
+void describe_envelope(const Envelope& env, char* out, size_t outSize) {
+    if (out == nullptr || outSize == 0) {
+        return;
+    }
+
+    switch (env.which_payload) {
+        case Envelope_show_page_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu",
+                     static_cast<unsigned long>(env.payload.show_page.page_id),
+                     static_cast<unsigned long>(env.payload.show_page.session_id));
+            break;
+        case Envelope_set_text_tag:
+            snprintf(out,
+                     outSize,
+                     "element=%lu text=\"%s\"",
+                     static_cast<unsigned long>(env.payload.set_text.element_id),
+                     env.payload.set_text.text);
+            break;
+        case Envelope_set_color_tag:
+            snprintf(out,
+                     outSize,
+                     "element=%lu bg=#%06lX fg=#%06lX",
+                     static_cast<unsigned long>(env.payload.set_color.element_id),
+                     static_cast<unsigned long>(env.payload.set_color.bg_color & 0xFFFFFFU),
+                     static_cast<unsigned long>(env.payload.set_color.fg_color & 0xFFFFFFU));
+            break;
+        case Envelope_set_visible_tag:
+            snprintf(out,
+                     outSize,
+                     "element=%lu visible=%d",
+                     static_cast<unsigned long>(env.payload.set_visible.element_id),
+                     env.payload.set_visible.visible ? 1 : 0);
+            break;
+        case Envelope_set_value_tag:
+            snprintf(out,
+                     outSize,
+                     "element=%lu value=%ld",
+                     static_cast<unsigned long>(env.payload.set_value.element_id),
+                     static_cast<long>(env.payload.set_value.value));
+            break;
+        case Envelope_set_batch_tag:
+            snprintf(out,
+                     outSize,
+                     "texts=%u colors=%u visibles=%u values=%u",
+                     static_cast<unsigned>(env.payload.set_batch.texts_count),
+                     static_cast<unsigned>(env.payload.set_batch.colors_count),
+                     static_cast<unsigned>(env.payload.set_batch.visibles_count),
+                     static_cast<unsigned>(env.payload.set_batch.values_count));
+            break;
+        case Envelope_button_event_tag:
+            snprintf(out,
+                     outSize,
+                     "element=%lu page=%lu session=%lu action=%s",
+                     static_cast<unsigned long>(env.payload.button_event.element_id),
+                     static_cast<unsigned long>(env.payload.button_event.page_id),
+                     static_cast<unsigned long>(env.payload.button_event.session_id),
+                     button_action_name(env.payload.button_event.action));
+            break;
+        case Envelope_input_event_tag:
+            if (env.payload.input_event.which_value == InputEvent_int_value_tag) {
+                snprintf(out,
+                         outSize,
+                         "element=%lu page=%lu session=%lu int=%ld",
+                         static_cast<unsigned long>(env.payload.input_event.element_id),
+                         static_cast<unsigned long>(env.payload.input_event.page_id),
+                         static_cast<unsigned long>(env.payload.input_event.session_id),
+                         static_cast<long>(env.payload.input_event.value.int_value));
+            } else if (env.payload.input_event.which_value == InputEvent_string_value_tag) {
+                snprintf(out,
+                         outSize,
+                         "element=%lu page=%lu session=%lu text=\"%s\"",
+                         static_cast<unsigned long>(env.payload.input_event.element_id),
+                         static_cast<unsigned long>(env.payload.input_event.page_id),
+                         static_cast<unsigned long>(env.payload.input_event.session_id),
+                         env.payload.input_event.value.string_value);
+            } else {
+                snprintf(out,
+                         outSize,
+                         "element=%lu page=%lu session=%lu value=<none>",
+                         static_cast<unsigned long>(env.payload.input_event.element_id),
+                         static_cast<unsigned long>(env.payload.input_event.page_id),
+                         static_cast<unsigned long>(env.payload.input_event.session_id));
+            }
+            break;
+        case Envelope_heartbeat_tag:
+            snprintf(out,
+                     outSize,
+                     "uptime_ms=%lu",
+                     static_cast<unsigned long>(env.payload.heartbeat.uptime_ms));
+            break;
+        case Envelope_hello_tag:
+            snprintf(out,
+                     outSize,
+                     "device=%s type=%s",
+                     env.payload.hello.device_info.device_id,
+                     env.payload.hello.device_info.client_type);
+            break;
+        case Envelope_request_device_info_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu",
+                     static_cast<unsigned long>(env.payload.request_device_info.request_id));
+            break;
+        case Envelope_device_info_tag:
+            snprintf(out,
+                     outSize,
+                     "device=%s type=%s instance=%s",
+                     env.payload.device_info.device_id,
+                     env.payload.device_info.client_type,
+                     env.payload.device_info.instance_id);
+            break;
+        case Envelope_request_current_page_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu",
+                     static_cast<unsigned long>(env.payload.request_current_page.request_id));
+            break;
+        case Envelope_current_page_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu page=%lu",
+                     static_cast<unsigned long>(env.payload.current_page.request_id),
+                     static_cast<unsigned long>(env.payload.current_page.page_id));
+            break;
+        case Envelope_request_page_state_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu page=%lu",
+                     static_cast<unsigned long>(env.payload.request_page_state.request_id),
+                     static_cast<unsigned long>(env.payload.request_page_state.page_id));
+            break;
+        case Envelope_page_state_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu page=%lu elements=%u",
+                     static_cast<unsigned long>(env.payload.page_state.request_id),
+                     static_cast<unsigned long>(env.payload.page_state.page_id),
+                     static_cast<unsigned>(env.payload.page_state.elements_count));
+            break;
+        case Envelope_request_element_state_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu page=%lu element=%lu",
+                     static_cast<unsigned long>(env.payload.request_element_state.request_id),
+                     static_cast<unsigned long>(env.payload.request_element_state.page_id),
+                     static_cast<unsigned long>(env.payload.request_element_state.element_id));
+            break;
+        case Envelope_element_state_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu page=%lu found=%d element=%lu",
+                     static_cast<unsigned long>(env.payload.element_state.request_id),
+                     static_cast<unsigned long>(env.payload.element_state.page_id),
+                     env.payload.element_state.found ? 1 : 0,
+                     static_cast<unsigned long>(env.payload.element_state.element.element_id));
+            break;
+        case Envelope_set_element_attribute_tag: {
+            char valueText[80] = {};
+            describe_set_attribute_value(env.payload.set_element_attribute, valueText, sizeof(valueText));
+            snprintf(out,
+                     outSize,
+                     "element=%lu attr=%d request=%lu session=%lu %s",
+                     static_cast<unsigned long>(env.payload.set_element_attribute.element_id),
+                     static_cast<int>(env.payload.set_element_attribute.attribute),
+                     static_cast<unsigned long>(env.payload.set_element_attribute.request_id),
+                     static_cast<unsigned long>(env.payload.set_element_attribute.session_id),
+                     valueText);
+            break;
+        }
+        case Envelope_request_element_attribute_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu page=%lu element=%lu attr=%d",
+                     static_cast<unsigned long>(env.payload.request_element_attribute.request_id),
+                     static_cast<unsigned long>(env.payload.request_element_attribute.page_id),
+                     static_cast<unsigned long>(env.payload.request_element_attribute.element_id),
+                     static_cast<int>(env.payload.request_element_attribute.attribute));
+            break;
+        case Envelope_element_attribute_state_tag:
+            snprintf(out,
+                     outSize,
+                     "request=%lu page=%lu element=%lu attr=%d found=%d",
+                     static_cast<unsigned long>(env.payload.element_attribute_state.request_id),
+                     static_cast<unsigned long>(env.payload.element_attribute_state.page_id),
+                     static_cast<unsigned long>(env.payload.element_attribute_state.element_id),
+                     static_cast<int>(env.payload.element_attribute_state.attribute),
+                     env.payload.element_attribute_state.found ? 1 : 0);
+            break;
+        case Envelope_page_snapshot_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu elements=%u",
+                     static_cast<unsigned long>(env.payload.page_snapshot.page_id),
+                     static_cast<unsigned long>(env.payload.page_snapshot.session_id),
+                     static_cast<unsigned>(env.payload.page_snapshot.elements_count));
+            break;
+        case Envelope_attribute_changed_tag: {
+            char valueText[80] = {};
+            if (env.payload.attribute_changed.has_value) {
+                describe_attribute_value(env.payload.attribute_changed.value, valueText, sizeof(valueText));
+            } else {
+                snprintf(valueText, sizeof(valueText), "value=<none>");
+            }
+            snprintf(out,
+                     outSize,
+                     "element=%lu page=%lu session=%lu reason=%d reply=%lu %s",
+                     static_cast<unsigned long>(env.payload.attribute_changed.element_id),
+                     static_cast<unsigned long>(env.payload.attribute_changed.page_id),
+                     static_cast<unsigned long>(env.payload.attribute_changed.session_id),
+                     static_cast<int>(env.payload.attribute_changed.reason),
+                     static_cast<unsigned long>(env.payload.attribute_changed.in_reply_to_request),
+                     valueText);
+            break;
+        }
+        default:
+            snprintf(out, outSize, "tag=%u", static_cast<unsigned>(env.which_payload));
+            break;
+    }
+}
+
+void log_traffic_envelope(const Envelope& env, screenlib::client::ScreenClient::EventDirection direction) {
+    if (!g_state.config.logTraffic) {
+        return;
+    }
+
+    char details[192] = {};
+    describe_envelope(env, details, sizeof(details));
+    SCREENLIB_LOGI(kTrafficLogTag,
+                   "%s %s %s",
+                   direction == screenlib::client::ScreenClient::EventDirection::Incoming ? "RX" : "TX",
+                   envelope_payload_name(env.which_payload),
+                   details);
 }
 
 enum class FrontendButtonAction : uint8_t {
@@ -544,12 +878,51 @@ DeviceInfo build_device_info(demo::FrontendMode mode) {
     return info;
 }
 
+bool send_hello(const DeviceInfo& deviceInfo) {
+    if (g_state.client == nullptr) {
+        return false;
+    }
+
+    Envelope& env = g_state.txEnvelope;
+    env = Envelope_init_zero;
+    env.which_payload = Envelope_hello_tag;
+    env.payload.hello.has_device_info = true;
+    env.payload.hello.device_info = deviceInfo;
+    return g_state.client->sendEnvelope(env);
+}
+
+bool send_device_info(const DeviceInfo& deviceInfo) {
+    if (g_state.client == nullptr) {
+        return false;
+    }
+
+    Envelope& env = g_state.txEnvelope;
+    env = Envelope_init_zero;
+    env.which_payload = Envelope_device_info_tag;
+    env.payload.device_info = deviceInfo;
+    return g_state.client->sendEnvelope(env);
+}
+
+bool send_current_page(uint32_t pageId, uint32_t requestId) {
+    if (g_state.client == nullptr) {
+        return false;
+    }
+
+    Envelope& env = g_state.txEnvelope;
+    env = Envelope_init_zero;
+    env.which_payload = Envelope_current_page_tag;
+    env.payload.current_page.page_id = pageId;
+    env.payload.current_page.request_id = requestId;
+    return g_state.client->sendEnvelope(env);
+}
+
 bool send_snapshot_for_current_page() {
     if (g_state.client == nullptr) {
         return false;
     }
 
-    Envelope env = Envelope_init_zero;
+    Envelope& env = g_state.txEnvelope;
+    env = Envelope_init_zero;
     env.which_payload = Envelope_page_snapshot_tag;
     if (!g_state.adapter.buildPageSnapshot(
             g_state.currentPageId,
@@ -571,7 +944,8 @@ bool send_attribute_change(uint32_t elementId,
         return false;
     }
 
-    Envelope env = Envelope_init_zero;
+    Envelope& env = g_state.txEnvelope;
+    env = Envelope_init_zero;
     env.which_payload = Envelope_attribute_changed_tag;
     env.payload.attribute_changed.session_id = g_state.currentSessionId;
     env.payload.attribute_changed.page_id = g_state.currentPageId;
@@ -655,7 +1029,8 @@ bool on_adapter_event(const Envelope& source, void* userData) {
         return false;
     }
 
-    Envelope env = source;
+    Envelope& env = g_state.txEnvelope;
+    env = source;
     switch (env.which_payload) {
         case Envelope_button_event_tag:
             env.payload.button_event.session_id = g_state.currentSessionId;
@@ -764,16 +1139,12 @@ void handle_incoming_envelope(const Envelope& env) {
             g_state.adapter.applyBatch(env.payload.set_batch);
             break;
         case Envelope_request_device_info_tag:
-            if (g_state.client != nullptr) {
-                g_state.client->sendHello(build_device_info(g_state.config.mode));
-            }
+            send_device_info(build_device_info(g_state.config.mode));
             break;
         case Envelope_request_current_page_tag:
-            if (g_state.client != nullptr) {
-                g_state.client->sendCurrentPage(
-                    demo::screen32_current_page_id(),
-                    env.payload.request_current_page.request_id);
-            }
+            send_current_page(
+                demo::screen32_current_page_id(),
+                env.payload.request_current_page.request_id);
             break;
         default:
             break;
@@ -782,7 +1153,13 @@ void handle_incoming_envelope(const Envelope& env) {
 
 void on_client_event(const Envelope& env, screenlib::client::ScreenClient::EventDirection direction, void* userData) {
     State* state = static_cast<State*>(userData);
-    if (state == nullptr || direction != screenlib::client::ScreenClient::EventDirection::Incoming) {
+    if (state == nullptr) {
+        return;
+    }
+
+    log_traffic_envelope(env, direction);
+
+    if (direction != screenlib::client::ScreenClient::EventDirection::Incoming) {
         return;
     }
 
@@ -837,7 +1214,7 @@ bool start_online_mode(const demo::FrontendConfig& config) {
     g_state.adapter.showPage(startPage);
     SCREENLIB_LOGI(kLogTag, "online mode enabled; start page=%lu", static_cast<unsigned long>(startPage));
 
-    const bool helloOk = g_state.client->sendHello(build_device_info(g_state.config.mode));
+    const bool helloOk = send_hello(build_device_info(g_state.config.mode));
     g_state.lastHelloMs = ::platform_tick_ms();
     g_state.waitStartMs = g_state.lastHelloMs;
     g_state.lastWaitLogMs = g_state.waitStartMs;
@@ -886,13 +1263,14 @@ bool init(const demo::FrontendConfig& config) {
     g_state.backendConnected = false;
 
     SCREENLIB_LOGI(kLogTag,
-                   "init mode=%s transport=%s offline_demo=%d online_page=%lu offline_page=%lu hb_ms=%lu",
+                   "init mode=%s transport=%s offline_demo=%d online_page=%lu offline_page=%lu hb_ms=%lu log_traffic=%d",
                    demo::frontend_mode_name(config.mode),
                    demo::frontend_transport_name(config.transport.type),
                    config.offlineDemo ? 1 : 0,
                    static_cast<unsigned long>(config.firstOnlinePage),
                    static_cast<unsigned long>(config.firstOfflinePage),
-                   static_cast<unsigned long>(config.heartbeatPeriodMs));
+                   static_cast<unsigned long>(config.heartbeatPeriodMs),
+                   config.logTraffic ? 1 : 0);
 
     configure_adapter();
     bind_generated_ui();
@@ -929,7 +1307,7 @@ void tick() {
 
         const uint32_t now = ::platform_tick_ms();
         if (!g_state.backendConnected && (now - g_state.lastHelloMs) >= kHelloRetryPeriodMs) {
-            const bool helloOk = g_state.client->sendHello(build_device_info(g_state.config.mode));
+            const bool helloOk = send_hello(build_device_info(g_state.config.mode));
             g_state.lastHelloMs = now;
             SCREENLIB_LOGD(kLogTag, "hello retry: %s", helloOk ? "ok" : "fail");
         }

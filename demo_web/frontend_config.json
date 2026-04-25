@@ -5,6 +5,7 @@
     "url": "ws://127.0.0.1:81"
   },
   "offline_demo": 1,
+  "log_traffic": 1,
   "firstOnlinePage": 1,
   "firstOfflinePage": 1
 }
