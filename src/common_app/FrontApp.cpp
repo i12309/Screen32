@@ -8,6 +8,7 @@
 
 #include "common_app/app_core.h"
 #include "common_app/frontend_platform.h"
+#include "common_app/KeyboardController.h"
 #include "demo/offline_demo_controller.h"
 #include "demo/offline_demo_ui_events.h"
 #include "element_descriptors.generated.h"
@@ -497,32 +498,6 @@ ButtonAction to_proto_button_action(FrontendButtonAction action) {
     }
 }
 
-bool get_label_for_object(lv_obj_t* obj, lv_obj_t*& outLabel) {
-    if (obj == nullptr || !lv_obj_is_valid(obj)) {
-        return false;
-    }
-
-#if LV_USE_LABEL
-    if (lv_obj_check_type(obj, &lv_label_class)) {
-        outLabel = obj;
-        return true;
-    }
-#endif
-
-    const uint32_t childCount = lv_obj_get_child_count(obj);
-    for (uint32_t i = 0; i < childCount; ++i) {
-        lv_obj_t* child = lv_obj_get_child(obj, static_cast<int32_t>(i));
-#if LV_USE_LABEL
-        if (lv_obj_check_type(child, &lv_label_class)) {
-            outLabel = child;
-            return true;
-        }
-#endif
-    }
-
-    return false;
-}
-
 FrontendUiEventSink g_uiEventSink = {};
 const demo::Screen32BoundElement* g_trackedElements = nullptr;
 size_t g_trackedCount = 0;
@@ -535,6 +510,7 @@ struct ButtonEventState {
 
 ButtonEventState g_buttonStates[SCREEN32_ELEMENT_DESCRIPTOR_COUNT] = {};
 size_t g_buttonStateCount = 0;
+KeyboardController g_keyboardController;
 
 const demo::Screen32BoundElement* find_tracked_element_by_id(uint32_t elementId) {
     return demo::screen32_find_bound_element(g_trackedElements, g_trackedCount, elementId);
@@ -599,6 +575,23 @@ void on_generated_ui_event_cb(lv_event_t* e) {
     const Screen32ElementDescriptor* descriptor =
         (tracked != nullptr) ? tracked->descriptor : screen32_find_element_descriptor(elementId);
     if (descriptor == nullptr) {
+        return;
+    }
+
+    if (g_keyboardController.shouldSuppressGeneratedEvent(descriptor->page_id)) {
+        return;
+    }
+
+    if (descriptor->opens_keyboard) {
+        if (code == LV_EVENT_CLICKED) {
+            lv_obj_t* source = tracked != nullptr ? tracked->obj : target;
+            g_keyboardController.open(
+                descriptor->page_id,
+                elementId,
+                source,
+                descriptor->keyboard_kind,
+                descriptor->keyboard_max_length);
+        }
         return;
     }
 
@@ -734,37 +727,7 @@ bool hook_show_page(void* userData, void* pageTarget) {
 
 bool hook_set_text(void* userData, void* uiObject, const char* text) {
     (void)userData;
-    lv_obj_t* obj = static_cast<lv_obj_t*>(uiObject);
-    if (obj == nullptr || !lv_obj_is_valid(obj)) {
-        return false;
-    }
-
-#if LV_USE_DROPDOWN
-    if (lv_obj_check_type(obj, &lv_dropdown_class)) {
-        lv_dropdown_set_options(obj, text != nullptr ? text : "");
-        return true;
-    }
-#endif
-
-#if LV_USE_CHECKBOX
-    if (lv_obj_check_type(obj, &lv_checkbox_class)) {
-        lv_checkbox_set_text(obj, text != nullptr ? text : "");
-        return true;
-    }
-#endif
-
-    lv_obj_t* label = nullptr;
-    if (!get_label_for_object(obj, label)) {
-        return false;
-    }
-
-#if LV_USE_LABEL
-    lv_label_set_text(label, text != nullptr ? text : "");
-    return true;
-#else
-    (void)text;
-    return false;
-#endif
+    return KeyboardController::setTextToObject(static_cast<lv_obj_t*>(uiObject), text);
 }
 
 bool hook_set_value(void* userData, void* uiObject, int32_t value) {
@@ -1143,7 +1106,7 @@ void handle_incoming_envelope(const Envelope& env) {
             break;
         case Envelope_request_current_page_tag:
             send_current_page(
-                demo::screen32_current_page_id(),
+                g_keyboardController.logicalPageId(demo::screen32_current_page_id()),
                 env.payload.request_current_page.request_id);
             break;
         default:
@@ -1280,6 +1243,7 @@ bool init(const demo::FrontendConfig& config) {
     sink.onButtonEvent = &on_ui_button_event;
     sink.onInputEventInt = &on_ui_input_event_int;
     sink.onInputEventText = &on_ui_input_event_text;
+    g_keyboardController.setInputEventSink(sink.userData, sink.onInputEventText);
     attach_generated_ui_events(g_state.tracked, g_state.trackedCount, sink);
     demo::offline_demo_ui_events_init(g_state.tracked, g_state.trackedCount, &on_ui_object_click, &g_state);
 

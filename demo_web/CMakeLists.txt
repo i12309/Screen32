@@ -63,8 +63,10 @@ FetchContent_MakeAvailable(nanopb)
 
 set(APP_SOURCES
     ${COMMON_APP_DIR}/FrontApp.cpp
+    ${COMMON_APP_DIR}/KeyboardController.cpp
     ${COMMON_APP_DIR}/app_core.cpp
     ${COMMON_APP_DIR}/frontend_config.cpp
+    ${COMMON_APP_DIR}/keyboard_action_stubs.cpp
     ${COMMON_APP_DIR}/shared_app.cpp
     ${DEMO_DIR}/offline_demo_controller.cpp
     ${DEMO_DIR}/offline_demo_scenario.cpp
