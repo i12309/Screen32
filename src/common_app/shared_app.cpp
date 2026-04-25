@@ -1,7 +1,7 @@
 #include "shared_app.h"
 
+#include "FrontApp.h"
 #include "app_core.h"
-#include "boot_controller.h"
 #include "frontend_config.h"
 #include "log/ScreenLibLogger.h"
 
@@ -60,7 +60,7 @@ void app_setup() {
     FrontendConfig frontendConfig = frontend_default_config();
     const bool cfgLoaded = frontend_load_config(frontendConfig);
     SCREENLIB_LOGI(kLogTag, "frontend config loaded=%d", cfgLoaded ? 1 : 0);
-    boot_controller().begin(frontendConfig, cfgLoaded);
+    frontapp::init(frontendConfig);
 
     lv_obj_invalidate(lv_scr_act());
     lv_refr_now(nullptr);
@@ -69,7 +69,7 @@ void app_setup() {
 void app_loop() {
     if (!g_fallback_mode) {
         app_core_tick();
-        boot_controller().tick();
+        frontapp::tick();
         return;
     }
 
