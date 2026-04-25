@@ -14,7 +14,7 @@ struct Screen32BoundElement;
  * Роль файла:
  * - Исполняет переходы offline demo по заранее заданному сценарию.
  * Вызывается:
- * - из frontend_runtime в режиме offline_demo и из offline-веток обработки UI-событий.
+ * - из FrontApp в режиме offline_demo и из offline-веток обработки UI-событий.
  * Должен содержать:
  * - только runtime-логику навигации offline demo.
  * НЕ должен содержать:

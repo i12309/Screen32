@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(DEMO_ROOT ${CMAKE_CURRENT_LIST_DIR}/..)
 set(SRC_DIR ${DEMO_ROOT}/src)
 set(COMMON_APP_DIR ${SRC_DIR}/common_app)
+set(DEMO_DIR ${SRC_DIR}/demo)
 set(WEB_PLATFORM_DIR ${SRC_DIR}/platform_web)
 
 set(SCREENLIB_ROOT ${DEMO_ROOT}/lib/screenLIB)
@@ -61,15 +62,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(nanopb)
 
 set(APP_SOURCES
+    ${COMMON_APP_DIR}/FrontApp.cpp
     ${COMMON_APP_DIR}/app_core.cpp
-    ${COMMON_APP_DIR}/boot_controller.cpp
     ${COMMON_APP_DIR}/frontend_config.cpp
-    ${COMMON_APP_DIR}/frontend_runtime.cpp
-    ${COMMON_APP_DIR}/frontend_service_responder.cpp
-    ${COMMON_APP_DIR}/frontend_ui_events.cpp
-    ${COMMON_APP_DIR}/offline_demo_controller.cpp
-    ${COMMON_APP_DIR}/page_state_builder.cpp
     ${COMMON_APP_DIR}/shared_app.cpp
+    ${DEMO_DIR}/offline_demo_controller.cpp
+    ${DEMO_DIR}/offline_demo_scenario.cpp
+    ${DEMO_DIR}/offline_demo_ui_events.cpp
     ${WEB_PLATFORM_DIR}/platform.cpp
     ${WEB_PLATFORM_DIR}/web_main.cpp
     ${SCREENUI_FRONTEND_META_DIR}/ui_object_map.generated.cpp
