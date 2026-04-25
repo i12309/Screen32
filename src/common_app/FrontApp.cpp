@@ -117,11 +117,6 @@ uint32_t normalize_color(uint32_t value) {
 const char* envelope_payload_name(pb_size_t whichPayload) {
     switch (whichPayload) {
         case Envelope_show_page_tag: return "show_page";
-        case Envelope_set_text_tag: return "set_text";
-        case Envelope_set_color_tag: return "set_color";
-        case Envelope_set_visible_tag: return "set_visible";
-        case Envelope_set_value_tag: return "set_value";
-        case Envelope_set_batch_tag: return "set_batch";
         case Envelope_button_event_tag: return "button_event";
         case Envelope_input_event_tag: return "input_event";
         case Envelope_heartbeat_tag: return "heartbeat";
@@ -130,10 +125,6 @@ const char* envelope_payload_name(pb_size_t whichPayload) {
         case Envelope_device_info_tag: return "device_info";
         case Envelope_request_current_page_tag: return "request_current_page";
         case Envelope_current_page_tag: return "current_page";
-        case Envelope_request_page_state_tag: return "request_page_state";
-        case Envelope_page_state_tag: return "page_state";
-        case Envelope_request_element_state_tag: return "request_element_state";
-        case Envelope_element_state_tag: return "element_state";
         case Envelope_set_element_attribute_tag: return "set_element_attribute";
         case Envelope_request_element_attribute_tag: return "request_element_attribute";
         case Envelope_element_attribute_state_tag: return "element_attribute_state";
@@ -244,44 +235,6 @@ void describe_envelope(const Envelope& env, char* out, size_t outSize) {
                      static_cast<unsigned long>(env.payload.show_page.page_id),
                      static_cast<unsigned long>(env.payload.show_page.session_id));
             break;
-        case Envelope_set_text_tag:
-            snprintf(out,
-                     outSize,
-                     "element=%lu text=\"%s\"",
-                     static_cast<unsigned long>(env.payload.set_text.element_id),
-                     env.payload.set_text.text);
-            break;
-        case Envelope_set_color_tag:
-            snprintf(out,
-                     outSize,
-                     "element=%lu bg=#%06lX fg=#%06lX",
-                     static_cast<unsigned long>(env.payload.set_color.element_id),
-                     static_cast<unsigned long>(env.payload.set_color.bg_color & 0xFFFFFFU),
-                     static_cast<unsigned long>(env.payload.set_color.fg_color & 0xFFFFFFU));
-            break;
-        case Envelope_set_visible_tag:
-            snprintf(out,
-                     outSize,
-                     "element=%lu visible=%d",
-                     static_cast<unsigned long>(env.payload.set_visible.element_id),
-                     env.payload.set_visible.visible ? 1 : 0);
-            break;
-        case Envelope_set_value_tag:
-            snprintf(out,
-                     outSize,
-                     "element=%lu value=%ld",
-                     static_cast<unsigned long>(env.payload.set_value.element_id),
-                     static_cast<long>(env.payload.set_value.value));
-            break;
-        case Envelope_set_batch_tag:
-            snprintf(out,
-                     outSize,
-                     "texts=%u colors=%u visibles=%u values=%u",
-                     static_cast<unsigned>(env.payload.set_batch.texts_count),
-                     static_cast<unsigned>(env.payload.set_batch.colors_count),
-                     static_cast<unsigned>(env.payload.set_batch.visibles_count),
-                     static_cast<unsigned>(env.payload.set_batch.values_count));
-            break;
         case Envelope_button_event_tag:
             snprintf(out,
                      outSize,
@@ -356,38 +309,6 @@ void describe_envelope(const Envelope& env, char* out, size_t outSize) {
                      "request=%lu page=%lu",
                      static_cast<unsigned long>(env.payload.current_page.request_id),
                      static_cast<unsigned long>(env.payload.current_page.page_id));
-            break;
-        case Envelope_request_page_state_tag:
-            snprintf(out,
-                     outSize,
-                     "request=%lu page=%lu",
-                     static_cast<unsigned long>(env.payload.request_page_state.request_id),
-                     static_cast<unsigned long>(env.payload.request_page_state.page_id));
-            break;
-        case Envelope_page_state_tag:
-            snprintf(out,
-                     outSize,
-                     "request=%lu page=%lu elements=%u",
-                     static_cast<unsigned long>(env.payload.page_state.request_id),
-                     static_cast<unsigned long>(env.payload.page_state.page_id),
-                     static_cast<unsigned>(env.payload.page_state.elements_count));
-            break;
-        case Envelope_request_element_state_tag:
-            snprintf(out,
-                     outSize,
-                     "request=%lu page=%lu element=%lu",
-                     static_cast<unsigned long>(env.payload.request_element_state.request_id),
-                     static_cast<unsigned long>(env.payload.request_element_state.page_id),
-                     static_cast<unsigned long>(env.payload.request_element_state.element_id));
-            break;
-        case Envelope_element_state_tag:
-            snprintf(out,
-                     outSize,
-                     "request=%lu page=%lu found=%d element=%lu",
-                     static_cast<unsigned long>(env.payload.element_state.request_id),
-                     static_cast<unsigned long>(env.payload.element_state.page_id),
-                     env.payload.element_state.found ? 1 : 0,
-                     static_cast<unsigned long>(env.payload.element_state.element.element_id));
             break;
         case Envelope_set_element_attribute_tag: {
             char valueText[80] = {};
@@ -1082,24 +1003,6 @@ void handle_incoming_envelope(const Envelope& env) {
         }
         case Envelope_set_element_attribute_tag:
             handle_set_element_attribute(env.payload.set_element_attribute);
-            break;
-        case Envelope_set_text_tag:
-            g_state.adapter.setText(env.payload.set_text.element_id, env.payload.set_text.text);
-            break;
-        case Envelope_set_value_tag:
-            g_state.adapter.setValue(env.payload.set_value.element_id, env.payload.set_value.value);
-            break;
-        case Envelope_set_visible_tag:
-            g_state.adapter.setVisible(env.payload.set_visible.element_id, env.payload.set_visible.visible);
-            break;
-        case Envelope_set_color_tag:
-            g_state.adapter.setColor(
-                env.payload.set_color.element_id,
-                env.payload.set_color.bg_color,
-                env.payload.set_color.fg_color);
-            break;
-        case Envelope_set_batch_tag:
-            g_state.adapter.applyBatch(env.payload.set_batch);
             break;
         case Envelope_request_device_info_tag:
             send_device_info(build_device_info(g_state.config.mode));
