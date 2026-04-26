@@ -3,12 +3,15 @@
 #include <memory>
 #include <stdio.h>
 #include <string.h>
+#include <vector>
 
 #include <lvgl.h>
 
 #include "common_app/app_core.h"
 #include "common_app/frontend_platform.h"
 #include "common_app/KeyboardController.h"
+#include "chunk/TextChunkAssembler.h"
+#include "chunk/TextChunkSender.h"
 #include "demo/offline_demo_controller.h"
 #include "demo/offline_demo_ui_events.h"
 #include "element_descriptors.generated.h"
@@ -59,7 +62,9 @@ struct State {
 
     demo::Screen32BoundElement tracked[kMaxTrackedElements] = {};
     size_t trackedCount = 0;
-    Envelope txEnvelope = Envelope_init_zero;
+    Envelope txEnvelope = {};
+    screenlib::chunk::TextChunkAssembler textAssembler;
+    uint32_t nextTransferId = 1;
 
     State()
         : objectMap(objectBindings, kMaxObjectBindings, pageBindings, kMaxPageBindings),
@@ -67,6 +72,10 @@ struct State {
 };
 
 State g_state;
+
+void reset_envelope(Envelope& env) {
+    memset(&env, 0, sizeof(env));
+}
 
 void copy_text_safe(char* dst, size_t dstSize, const char* src) {
     if (dst == nullptr || dstSize == 0) {
@@ -130,6 +139,8 @@ const char* envelope_payload_name(pb_size_t whichPayload) {
         case Envelope_element_attribute_state_tag: return "element_attribute_state";
         case Envelope_page_snapshot_tag: return "page_snapshot";
         case Envelope_attribute_changed_tag: return "attribute_changed";
+        case Envelope_text_chunk_tag: return "text_chunk";
+        case Envelope_text_chunk_abort_tag: return "text_chunk_abort";
         default: return "unknown";
     }
 }
@@ -213,9 +224,6 @@ void describe_set_attribute_value(const SetElementAttribute& cmd, char* out, siz
         case SetElementAttribute_bool_value_tag:
             snprintf(out, outSize, "bool=%d", cmd.value.bool_value ? 1 : 0);
             break;
-        case SetElementAttribute_string_value_tag:
-            snprintf(out, outSize, "text=\"%s\"", cmd.value.string_value);
-            break;
         default:
             snprintf(out, outSize, "value=<none>");
             break;
@@ -253,14 +261,6 @@ void describe_envelope(const Envelope& env, char* out, size_t outSize) {
                          static_cast<unsigned long>(env.payload.input_event.page_id),
                          static_cast<unsigned long>(env.payload.input_event.session_id),
                          static_cast<long>(env.payload.input_event.value.int_value));
-            } else if (env.payload.input_event.which_value == InputEvent_string_value_tag) {
-                snprintf(out,
-                         outSize,
-                         "element=%lu page=%lu session=%lu text=\"%s\"",
-                         static_cast<unsigned long>(env.payload.input_event.element_id),
-                         static_cast<unsigned long>(env.payload.input_event.page_id),
-                         static_cast<unsigned long>(env.payload.input_event.session_id),
-                         env.payload.input_event.value.string_value);
             } else {
                 snprintf(out,
                          outSize,
@@ -368,6 +368,28 @@ void describe_envelope(const Envelope& env, char* out, size_t outSize) {
                      valueText);
             break;
         }
+        case Envelope_text_chunk_tag:
+            snprintf(out,
+                     outSize,
+                     "transfer=%lu element=%lu page=%lu session=%lu index=%lu/%lu kind=%d bytes=%u request=%lu",
+                     static_cast<unsigned long>(env.payload.text_chunk.transfer_id),
+                     static_cast<unsigned long>(env.payload.text_chunk.element_id),
+                     static_cast<unsigned long>(env.payload.text_chunk.page_id),
+                     static_cast<unsigned long>(env.payload.text_chunk.session_id),
+                     static_cast<unsigned long>(env.payload.text_chunk.chunk_index),
+                     static_cast<unsigned long>(env.payload.text_chunk.chunk_count),
+                     static_cast<int>(env.payload.text_chunk.kind),
+                     static_cast<unsigned>(env.payload.text_chunk.chunk_data.size),
+                     static_cast<unsigned long>(env.payload.text_chunk.request_id));
+            break;
+        case Envelope_text_chunk_abort_tag:
+            snprintf(out,
+                     outSize,
+                     "transfer=%lu request=%lu reason=%d",
+                     static_cast<unsigned long>(env.payload.text_chunk_abort.transfer_id),
+                     static_cast<unsigned long>(env.payload.text_chunk_abort.request_id),
+                     static_cast<int>(env.payload.text_chunk_abort.reason));
+            break;
         default:
             snprintf(out, outSize, "tag=%u", static_cast<unsigned>(env.which_payload));
             break;
@@ -768,7 +790,7 @@ bool send_hello(const DeviceInfo& deviceInfo) {
     }
 
     Envelope& env = g_state.txEnvelope;
-    env = Envelope_init_zero;
+    reset_envelope(env);
     env.which_payload = Envelope_hello_tag;
     env.payload.hello.has_device_info = true;
     env.payload.hello.device_info = deviceInfo;
@@ -781,7 +803,7 @@ bool send_device_info(const DeviceInfo& deviceInfo) {
     }
 
     Envelope& env = g_state.txEnvelope;
-    env = Envelope_init_zero;
+    reset_envelope(env);
     env.which_payload = Envelope_device_info_tag;
     env.payload.device_info = deviceInfo;
     return g_state.client->sendEnvelope(env);
@@ -793,11 +815,24 @@ bool send_current_page(uint32_t pageId, uint32_t requestId) {
     }
 
     Envelope& env = g_state.txEnvelope;
-    env = Envelope_init_zero;
+    reset_envelope(env);
     env.which_payload = Envelope_current_page_tag;
     env.payload.current_page.page_id = pageId;
     env.payload.current_page.request_id = requestId;
     return g_state.client->sendEnvelope(env);
+}
+
+uint32_t next_transfer_id() {
+    const uint32_t transferId = g_state.nextTransferId++;
+    if (g_state.nextTransferId == 0) {
+        g_state.nextTransferId = 1;
+    }
+    return transferId;
+}
+
+bool send_client_envelope(const Envelope& env, void* userData) {
+    (void)userData;
+    return g_state.client != nullptr && g_state.client->sendEnvelope(env);
 }
 
 bool send_snapshot_for_current_page() {
@@ -805,19 +840,47 @@ bool send_snapshot_for_current_page() {
         return false;
     }
 
+    std::vector<screenlib::adapter::SnapshotLongTextField> longTextFields;
     Envelope& env = g_state.txEnvelope;
-    env = Envelope_init_zero;
+    reset_envelope(env);
     env.which_payload = Envelope_page_snapshot_tag;
     if (!g_state.adapter.buildPageSnapshot(
             g_state.currentPageId,
             g_state.currentSessionId,
-            env.payload.page_snapshot)) {
+            env.payload.page_snapshot,
+            longTextFields)) {
         SCREENLIB_LOGW(kLogTag,
                        "buildPageSnapshot returned false for page=%lu session=%lu",
                        static_cast<unsigned long>(g_state.currentPageId),
                        static_cast<unsigned long>(g_state.currentSessionId));
     }
-    return g_state.client->sendEnvelope(env);
+
+    if (!g_state.client->sendEnvelope(env)) {
+        return false;
+    }
+
+    bool allOk = true;
+    for (const screenlib::adapter::SnapshotLongTextField& field : longTextFields) {
+        const uint32_t transferId = next_transfer_id();
+        if (!screenlib::chunk::sendTextChunks(&send_client_envelope,
+                                              nullptr,
+                                              TextChunkKind_TEXT_CHUNK_ATTRIBUTE_CHANGED,
+                                              transferId,
+                                              g_state.currentSessionId,
+                                              g_state.currentPageId,
+                                              field.elementId,
+                                              field.attribute,
+                                              0,
+                                              field.text.c_str())) {
+            SCREENLIB_LOGW(kLogTag,
+                           "snapshot long text chunks send failed element=%lu attr=%d",
+                           static_cast<unsigned long>(field.elementId),
+                           static_cast<int>(field.attribute));
+            allOk = false;
+        }
+    }
+
+    return allOk;
 }
 
 bool send_attribute_change(uint32_t elementId,
@@ -829,7 +892,7 @@ bool send_attribute_change(uint32_t elementId,
     }
 
     Envelope& env = g_state.txEnvelope;
-    env = Envelope_init_zero;
+    reset_envelope(env);
     env.which_payload = Envelope_attribute_changed_tag;
     env.payload.attribute_changed.session_id = g_state.currentSessionId;
     env.payload.attribute_changed.page_id = g_state.currentPageId;
@@ -838,6 +901,18 @@ bool send_attribute_change(uint32_t elementId,
     env.payload.attribute_changed.value = value;
     env.payload.attribute_changed.reason = reason;
     env.payload.attribute_changed.in_reply_to_request = inReplyToRequest;
+    return g_state.client->sendEnvelope(env);
+}
+
+bool send_text_chunk_abort(const TextChunkAbort& abort) {
+    if (g_state.client == nullptr || g_state.offlineDemo || !g_state.client->connected()) {
+        return false;
+    }
+
+    Envelope& env = g_state.txEnvelope;
+    reset_envelope(env);
+    env.which_payload = Envelope_text_chunk_abort_tag;
+    env.payload.text_chunk_abort = abort;
     return g_state.client->sendEnvelope(env);
 }
 
@@ -869,10 +944,6 @@ bool convert_set_cmd_to_attribute_value(const SetElementAttribute& cmd, ElementA
         case SetElementAttribute_bool_value_tag:
             out.which_value = ElementAttributeValue_bool_value_tag;
             out.value.bool_value = cmd.value.bool_value;
-            return true;
-        case SetElementAttribute_string_value_tag:
-            out.which_value = ElementAttributeValue_string_value_tag;
-            copy_text_safe(out.value.string_value, sizeof(out.value.string_value), cmd.value.string_value);
             return true;
         default:
             return false;
@@ -907,6 +978,55 @@ void handle_set_element_attribute(const SetElementAttribute& cmd) {
     }
 }
 
+void handle_text_chunk(const TextChunk& chunkMsg) {
+    screenlib::chunk::AssembledText text;
+    TextChunkAbort abort = TextChunkAbort_init_zero;
+    if (!g_state.textAssembler.push(chunkMsg, ::platform_tick_ms(), text, abort)) {
+        if (abort.transfer_id != 0) {
+            SCREENLIB_LOGW(kLogTag,
+                           "text chunk rejected transfer=%lu reason=%d",
+                           static_cast<unsigned long>(abort.transfer_id),
+                           static_cast<int>(abort.reason));
+            send_text_chunk_abort(abort);
+        }
+        return;
+    }
+
+    if (text.kind != TextChunkKind_TEXT_CHUNK_SET_ATTRIBUTE ||
+        text.attribute != ElementAttribute_ELEMENT_ATTRIBUTE_TEXT) {
+        SCREENLIB_LOGW(kLogTag,
+                       "unsupported text chunk kind=%d attr=%d transfer=%lu",
+                       static_cast<int>(text.kind),
+                       static_cast<int>(text.attribute),
+                       static_cast<unsigned long>(text.transferId));
+        return;
+    }
+
+    if (text.sessionId != 0 && text.sessionId != g_state.currentSessionId) {
+        SCREENLIB_LOGW(kLogTag,
+                       "stale text chunk ignored: session=%lu/%lu element=%lu",
+                       static_cast<unsigned long>(text.sessionId),
+                       static_cast<unsigned long>(g_state.currentSessionId),
+                       static_cast<unsigned long>(text.elementId));
+        return;
+    }
+
+    ElementAttributeValue applied = ElementAttributeValue_init_zero;
+    if (!g_state.adapter.applyTextAttribute(text.elementId, text.text.c_str(), applied)) {
+        SCREENLIB_LOGW(kLogTag,
+                       "text chunk apply failed element=%lu",
+                       static_cast<unsigned long>(text.elementId));
+        return;
+    }
+
+    if (text.requestId != 0) {
+        send_attribute_change(text.elementId,
+                              applied,
+                              AttributeChangeReason_REASON_COMMAND_APPLIED,
+                              text.requestId);
+    }
+}
+
 bool on_adapter_event(const Envelope& source, void* userData) {
     (void)userData;
     if (g_state.client == nullptr || g_state.offlineDemo || !g_state.client->connected()) {
@@ -921,6 +1041,9 @@ bool on_adapter_event(const Envelope& source, void* userData) {
             break;
         case Envelope_input_event_tag:
             env.payload.input_event.session_id = g_state.currentSessionId;
+            break;
+        case Envelope_text_chunk_tag:
+            env.payload.text_chunk.session_id = g_state.currentSessionId;
             break;
         default:
             break;
@@ -1004,6 +1127,16 @@ void handle_incoming_envelope(const Envelope& env) {
         case Envelope_set_element_attribute_tag:
             handle_set_element_attribute(env.payload.set_element_attribute);
             break;
+        case Envelope_text_chunk_tag:
+            handle_text_chunk(env.payload.text_chunk);
+            break;
+        case Envelope_text_chunk_abort_tag:
+            SCREENLIB_LOGW(kLogTag,
+                           "peer aborted text chunk transfer=%lu request=%lu reason=%d",
+                           static_cast<unsigned long>(env.payload.text_chunk_abort.transfer_id),
+                           static_cast<unsigned long>(env.payload.text_chunk_abort.request_id),
+                           static_cast<int>(env.payload.text_chunk_abort.reason));
+            break;
         case Envelope_request_device_info_tag:
             send_device_info(build_device_info(g_state.config.mode));
             break;
@@ -1072,6 +1205,8 @@ bool start_online_mode(const demo::FrontendConfig& config) {
     g_state.online = true;
     g_state.backendConnected = false;
     g_state.client.reset(new screenlib::client::ScreenClient(*g_state.transport));
+    g_state.textAssembler.reset();
+    g_state.nextTransferId = 1;
     g_state.client->setEventHandler(&on_client_event, &g_state);
     g_state.client->init();
 
@@ -1091,6 +1226,8 @@ bool start_online_mode(const demo::FrontendConfig& config) {
 bool start_offline_demo_mode(const demo::FrontendConfig& config) {
     g_state.client.reset();
     g_state.transport.reset();
+    g_state.textAssembler.reset();
+    g_state.nextTransferId = 1;
     demo::offline_demo_ui_events_set_enabled(true);
     g_state.offlineDemo = true;
     g_state.online = false;
@@ -1173,6 +1310,15 @@ void tick() {
         g_state.client->tick();
 
         const uint32_t now = ::platform_tick_ms();
+        TextChunkAbort abort = TextChunkAbort_init_zero;
+        while (g_state.textAssembler.pollTimeout(now, abort)) {
+            SCREENLIB_LOGW(kLogTag,
+                           "text chunk assembly timeout transfer=%lu request=%lu",
+                           static_cast<unsigned long>(abort.transfer_id),
+                           static_cast<unsigned long>(abort.request_id));
+            send_text_chunk_abort(abort);
+        }
+
         if (!g_state.backendConnected && (now - g_state.lastHelloMs) >= kHelloRetryPeriodMs) {
             const bool helloOk = send_hello(build_device_info(g_state.config.mode));
             g_state.lastHelloMs = now;
