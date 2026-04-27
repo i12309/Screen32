@@ -38,6 +38,14 @@ constexpr uint32_t kWaitLogPeriodMs = 5000;
 constexpr const char* kLogTag = "frontapp";
 constexpr const char* kTrafficLogTag = "frontapp.traffic";
 
+enum class FrontendState : uint8_t {
+    OfflineDemo,
+    OnlineWaitingBackend,
+    OnlineIdle,
+    LoadingPage,
+    PageActive
+};
+
 struct State {
     demo::FrontendConfig config = demo::frontend_default_config();
     bool initialized = false;
@@ -50,6 +58,9 @@ struct State {
     uint32_t lastHelloMs = 0;
     uint32_t waitStartMs = 0;
     uint32_t lastWaitLogMs = 0;
+    FrontendState frontendState = FrontendState::OfflineDemo;
+    uint32_t pageLoadStartedAtMs = 0;
+    uint32_t snapshotSentForSession = 0;
 
     std::unique_ptr<ITransport> transport;
     std::unique_ptr<screenlib::client::ScreenClient> client;
@@ -840,34 +851,57 @@ bool send_snapshot_for_current_page() {
         return false;
     }
 
+    const uint32_t pageId = g_state.currentPageId;
+    const uint32_t sessionId = g_state.currentSessionId;
+    if (g_state.frontendState != FrontendState::LoadingPage || pageId == 0 || sessionId == 0) {
+        SCREENLIB_LOGD(kLogTag,
+                       "snapshot skipped: state=%u page=%lu session=%lu",
+                       static_cast<unsigned>(g_state.frontendState),
+                       static_cast<unsigned long>(pageId),
+                       static_cast<unsigned long>(sessionId));
+        return false;
+    }
+
     std::vector<screenlib::adapter::SnapshotLongTextField> longTextFields;
     Envelope& env = g_state.txEnvelope;
     reset_envelope(env);
     env.which_payload = Envelope_page_snapshot_tag;
     if (!g_state.adapter.buildPageSnapshot(
-            g_state.currentPageId,
-            g_state.currentSessionId,
+            pageId,
+            sessionId,
             env.payload.page_snapshot,
             longTextFields)) {
         SCREENLIB_LOGW(kLogTag,
                        "buildPageSnapshot returned false for page=%lu session=%lu",
+                       static_cast<unsigned long>(pageId),
+                       static_cast<unsigned long>(sessionId));
+    }
+
+    if (g_state.frontendState != FrontendState::LoadingPage ||
+        g_state.currentPageId != pageId ||
+        g_state.currentSessionId != sessionId) {
+        SCREENLIB_LOGD(kLogTag,
+                       "snapshot dropped after page changed: page=%lu/%lu session=%lu/%lu",
+                       static_cast<unsigned long>(pageId),
                        static_cast<unsigned long>(g_state.currentPageId),
+                       static_cast<unsigned long>(sessionId),
                        static_cast<unsigned long>(g_state.currentSessionId));
+        return false;
     }
 
     if (!g_state.client->sendEnvelope(env)) {
         return false;
     }
+    g_state.snapshotSentForSession = sessionId;
 
-    bool allOk = true;
     for (const screenlib::adapter::SnapshotLongTextField& field : longTextFields) {
         const uint32_t transferId = next_transfer_id();
         if (!screenlib::chunk::sendTextChunks(&send_client_envelope,
                                               nullptr,
                                               TextChunkKind_TEXT_CHUNK_ATTRIBUTE_CHANGED,
                                               transferId,
-                                              g_state.currentSessionId,
-                                              g_state.currentPageId,
+                                              sessionId,
+                                              pageId,
                                               field.elementId,
                                               field.attribute,
                                               0,
@@ -876,11 +910,10 @@ bool send_snapshot_for_current_page() {
                            "snapshot long text chunks send failed element=%lu attr=%d",
                            static_cast<unsigned long>(field.elementId),
                            static_cast<int>(field.attribute));
-            allOk = false;
         }
     }
 
-    return allOk;
+    return true;
 }
 
 bool send_attribute_change(uint32_t elementId,
@@ -914,6 +947,23 @@ bool send_text_chunk_abort(const TextChunkAbort& abort) {
     env.which_payload = Envelope_text_chunk_abort_tag;
     env.payload.text_chunk_abort = abort;
     return g_state.client->sendEnvelope(env);
+}
+
+bool is_active_online_page(uint32_t pageId) {
+    return !g_state.offlineDemo &&
+           g_state.frontendState == FrontendState::PageActive &&
+           pageId == g_state.currentPageId;
+}
+
+void abort_stale_text_chunk(const TextChunk& chunkMsg) {
+    if (chunkMsg.request_id == 0 && chunkMsg.transfer_id == 0) {
+        return;
+    }
+    TextChunkAbort abort = TextChunkAbort_init_zero;
+    abort.transfer_id = chunkMsg.transfer_id;
+    abort.request_id = chunkMsg.request_id;
+    abort.reason = TextChunkAbortReason_TEXT_CHUNK_ABORT_METADATA_CHANGED;
+    send_text_chunk_abort(abort);
 }
 
 void on_attribute_change(uint32_t elementId,
@@ -951,6 +1001,16 @@ bool convert_set_cmd_to_attribute_value(const SetElementAttribute& cmd, ElementA
 }
 
 void handle_set_element_attribute(const SetElementAttribute& cmd) {
+    if (g_state.frontendState != FrontendState::PageActive ||
+        (cmd.session_id != 0 && cmd.session_id != g_state.currentSessionId)) {
+        SCREENLIB_LOGD(kLogTag,
+                       "stale set_element_attribute ignored: session=%lu/%lu element=%lu",
+                       static_cast<unsigned long>(cmd.session_id),
+                       static_cast<unsigned long>(g_state.currentSessionId),
+                       static_cast<unsigned long>(cmd.element_id));
+        return;
+    }
+
     ElementAttributeValue requested = ElementAttributeValue_init_zero;
     ElementAttributeValue applied = ElementAttributeValue_init_zero;
     if (!convert_set_cmd_to_attribute_value(cmd, requested)) {
@@ -979,6 +1039,16 @@ void handle_set_element_attribute(const SetElementAttribute& cmd) {
 }
 
 void handle_text_chunk(const TextChunk& chunkMsg) {
+    if (chunkMsg.session_id != 0 && chunkMsg.session_id != g_state.currentSessionId) {
+        SCREENLIB_LOGD(kLogTag,
+                       "stale text chunk ignored: session=%lu/%lu transfer=%lu",
+                       static_cast<unsigned long>(chunkMsg.session_id),
+                       static_cast<unsigned long>(g_state.currentSessionId),
+                       static_cast<unsigned long>(chunkMsg.transfer_id));
+        abort_stale_text_chunk(chunkMsg);
+        return;
+    }
+
     screenlib::chunk::AssembledText text;
     TextChunkAbort abort = TextChunkAbort_init_zero;
     if (!g_state.textAssembler.push(chunkMsg, ::platform_tick_ms(), text, abort)) {
@@ -1003,11 +1073,12 @@ void handle_text_chunk(const TextChunk& chunkMsg) {
     }
 
     if (text.sessionId != 0 && text.sessionId != g_state.currentSessionId) {
-        SCREENLIB_LOGW(kLogTag,
+        SCREENLIB_LOGD(kLogTag,
                        "stale text chunk ignored: session=%lu/%lu element=%lu",
                        static_cast<unsigned long>(text.sessionId),
                        static_cast<unsigned long>(g_state.currentSessionId),
                        static_cast<unsigned long>(text.elementId));
+        abort_stale_text_chunk(chunkMsg);
         return;
     }
 
@@ -1037,12 +1108,33 @@ bool on_adapter_event(const Envelope& source, void* userData) {
     env = source;
     switch (env.which_payload) {
         case Envelope_button_event_tag:
+            if (!is_active_online_page(env.payload.button_event.page_id)) {
+                SCREENLIB_LOGD(kLogTag,
+                               "drop button event from inactive page=%lu active=%lu",
+                               static_cast<unsigned long>(env.payload.button_event.page_id),
+                               static_cast<unsigned long>(g_state.currentPageId));
+                return false;
+            }
             env.payload.button_event.session_id = g_state.currentSessionId;
             break;
         case Envelope_input_event_tag:
+            if (!is_active_online_page(env.payload.input_event.page_id)) {
+                SCREENLIB_LOGD(kLogTag,
+                               "drop input event from inactive page=%lu active=%lu",
+                               static_cast<unsigned long>(env.payload.input_event.page_id),
+                               static_cast<unsigned long>(g_state.currentPageId));
+                return false;
+            }
             env.payload.input_event.session_id = g_state.currentSessionId;
             break;
         case Envelope_text_chunk_tag:
+            if (!is_active_online_page(env.payload.text_chunk.page_id)) {
+                SCREENLIB_LOGD(kLogTag,
+                               "drop text input chunk from inactive page=%lu active=%lu",
+                               static_cast<unsigned long>(env.payload.text_chunk.page_id),
+                               static_cast<unsigned long>(g_state.currentPageId));
+                return false;
+            }
             env.payload.text_chunk.session_id = g_state.currentSessionId;
             break;
         default:
@@ -1063,6 +1155,14 @@ void on_ui_button_event(void* userData, uint32_t elementId, uint32_t pageId, Fro
         if (protoAction == ButtonAction_CLICK) {
             state->offlineController.onButtonEvent(elementId, pageId);
         }
+        return;
+    }
+
+    if (state->frontendState != FrontendState::PageActive || pageId != state->currentPageId) {
+        SCREENLIB_LOGD(kLogTag,
+                       "drop button event from inactive page=%lu active=%lu",
+                       static_cast<unsigned long>(pageId),
+                       static_cast<unsigned long>(state->currentPageId));
         return;
     }
 
@@ -1092,6 +1192,14 @@ void on_ui_input_event_int(void* userData, uint32_t elementId, uint32_t pageId, 
         return;
     }
 
+    if (state->frontendState != FrontendState::PageActive || pageId != state->currentPageId) {
+        SCREENLIB_LOGD(kLogTag,
+                       "drop input event from inactive page=%lu active=%lu",
+                       static_cast<unsigned long>(pageId),
+                       static_cast<unsigned long>(state->currentPageId));
+        return;
+    }
+
     state->adapter.emitInputEventInt(elementId, pageId, value);
 }
 
@@ -1103,6 +1211,14 @@ void on_ui_input_event_text(void* userData, uint32_t elementId, uint32_t pageId,
 
     if (state->offlineDemo) {
         state->offlineController.onInputEventText(elementId, pageId, value);
+        return;
+    }
+
+    if (state->frontendState != FrontendState::PageActive || pageId != state->currentPageId) {
+        SCREENLIB_LOGD(kLogTag,
+                       "drop text input event from inactive page=%lu active=%lu",
+                       static_cast<unsigned long>(pageId),
+                       static_cast<unsigned long>(state->currentPageId));
         return;
     }
 
@@ -1118,10 +1234,25 @@ void handle_incoming_envelope(const Envelope& env) {
             g_state.backendConnected = true;
             g_state.online = true;
             g_state.offlineDemo = false;
+            g_state.frontendState = FrontendState::LoadingPage;
+            g_state.pageLoadStartedAtMs = ::platform_tick_ms();
+            g_state.snapshotSentForSession = 0;
+            g_state.textAssembler.reset();
 
-            g_state.adapter.showPage(msg.page_id);
+            if (!g_state.adapter.showPage(msg.page_id)) {
+                SCREENLIB_LOGW(kLogTag,
+                               "showPage failed page=%lu session=%lu",
+                               static_cast<unsigned long>(msg.page_id),
+                               static_cast<unsigned long>(msg.session_id));
+                g_state.frontendState = FrontendState::OnlineIdle;
+                break;
+            }
             g_state.adapter.installChangeListeners(msg.page_id, &on_attribute_change, nullptr);
-            send_snapshot_for_current_page();
+            if (send_snapshot_for_current_page()) {
+                g_state.frontendState = FrontendState::PageActive;
+            } else {
+                g_state.frontendState = FrontendState::OnlineIdle;
+            }
             break;
         }
         case Envelope_set_element_attribute_tag:
@@ -1164,6 +1295,9 @@ void on_client_event(const Envelope& env, screenlib::client::ScreenClient::Event
 
     if (!state->backendConnected) {
         state->backendConnected = true;
+        if (state->frontendState == FrontendState::OnlineWaitingBackend) {
+            state->frontendState = FrontendState::OnlineIdle;
+        }
         SCREENLIB_LOGI(kLogTag, "backend connected: first incoming payload=%s", envelope_payload_name(env.which_payload));
     }
 
@@ -1204,9 +1338,12 @@ bool start_online_mode(const demo::FrontendConfig& config) {
     g_state.offlineDemo = false;
     g_state.online = true;
     g_state.backendConnected = false;
+    g_state.frontendState = FrontendState::OnlineWaitingBackend;
     g_state.client.reset(new screenlib::client::ScreenClient(*g_state.transport));
     g_state.textAssembler.reset();
     g_state.nextTransferId = 1;
+    g_state.currentSessionId = 0;
+    g_state.snapshotSentForSession = 0;
     g_state.client->setEventHandler(&on_client_event, &g_state);
     g_state.client->init();
 
@@ -1232,7 +1369,9 @@ bool start_offline_demo_mode(const demo::FrontendConfig& config) {
     g_state.offlineDemo = true;
     g_state.online = false;
     g_state.backendConnected = false;
+    g_state.frontendState = FrontendState::OfflineDemo;
     g_state.currentSessionId = 0;
+    g_state.snapshotSentForSession = 0;
     g_state.waitStartMs = 0;
     g_state.lastWaitLogMs = 0;
 
