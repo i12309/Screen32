@@ -72,7 +72,8 @@ namespace {
 
 class Esp32UartTransport : public ITransport {
 public:
-    static constexpr size_t kRxBufferSize = 512;
+    static constexpr size_t kRxBufferSize = 4096;
+    static constexpr size_t kTxBufferSize = 2048;
 
     bool begin(HardwareSerial* serial, uint32_t baud, int8_t rxPin, int8_t txPin) {
         if (serial == nullptr || baud == 0) {
@@ -82,6 +83,7 @@ public:
         }
         _serial = serial;
         _serial->setRxBufferSize(kRxBufferSize);
+        _serial->setTxBufferSize(kTxBufferSize);
         _serial->begin(baud, SERIAL_8N1, rxPin, txPin);
         _started = true;
         SCREENLIB_LOGI("platform.esp32",

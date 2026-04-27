@@ -167,6 +167,51 @@ const char* button_action_name(ButtonAction action) {
     }
 }
 
+const char* attribute_name(ElementAttribute attribute) {
+    switch (attribute) {
+        case ElementAttribute_ELEMENT_ATTRIBUTE_POSITION_WIDTH: return "POSITION_WIDTH";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_POSITION_HEIGHT: return "POSITION_HEIGHT";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_BACKGROUND_COLOR: return "BACKGROUND_COLOR";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_BORDER_COLOR: return "BORDER_COLOR";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_BORDER_WIDTH: return "BORDER_WIDTH";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_TEXT_COLOR: return "TEXT_COLOR";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_TEXT_FONT: return "TEXT_FONT";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_VISIBLE: return "VISIBLE";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_TEXT: return "TEXT";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_VALUE: return "VALUE";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_X: return "X";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_Y: return "Y";
+        case ElementAttribute_ELEMENT_ATTRIBUTE_UNKNOWN:
+        default:
+            return "UNKNOWN";
+    }
+}
+
+void describe_element(uint32_t elementId, char* out, size_t outSize) {
+    if (out == nullptr || outSize == 0) {
+        return;
+    }
+
+    const Screen32ElementDescriptor* desc = screen32_find_element_descriptor(elementId);
+    if (desc == nullptr) {
+        snprintf(out,
+                 outSize,
+                 "element=%lu name=<unknown>",
+                 static_cast<unsigned long>(elementId));
+        return;
+    }
+
+    snprintf(out,
+             outSize,
+             "element=%lu name=%s object=%s page=%s(%lu) type=%d",
+             static_cast<unsigned long>(elementId),
+             desc->element_name != nullptr ? desc->element_name : "",
+             desc->object_name != nullptr ? desc->object_name : "",
+             desc->page_name != nullptr ? desc->page_name : "",
+             static_cast<unsigned long>(desc->page_id),
+             static_cast<int>(desc->element_type));
+}
+
 void describe_attribute_value(const ElementAttributeValue& value, char* out, size_t outSize) {
     if (out == nullptr || outSize == 0) {
         return;
@@ -921,6 +966,16 @@ bool send_attribute_change(uint32_t elementId,
                            AttributeChangeReason reason,
                            uint32_t inReplyToRequest) {
     if (g_state.client == nullptr || g_state.offlineDemo || !g_state.client->connected()) {
+        if (inReplyToRequest != 0) {
+            char elementText[160] = {};
+            describe_element(elementId, elementText, sizeof(elementText));
+            SCREENLIB_LOGW(kLogTag,
+                           "ACK not sent: client unavailable %s attr=%s(%d) request=%lu",
+                           elementText,
+                           attribute_name(value.attribute),
+                           static_cast<int>(value.attribute),
+                           static_cast<unsigned long>(inReplyToRequest));
+        }
         return false;
     }
 
@@ -934,7 +989,51 @@ bool send_attribute_change(uint32_t elementId,
     env.payload.attribute_changed.value = value;
     env.payload.attribute_changed.reason = reason;
     env.payload.attribute_changed.in_reply_to_request = inReplyToRequest;
-    return g_state.client->sendEnvelope(env);
+    const bool ok = g_state.client->sendEnvelope(env);
+    if (inReplyToRequest != 0) {
+        char elementText[160] = {};
+        describe_element(elementId, elementText, sizeof(elementText));
+        SCREENLIB_LOGI(kLogTag,
+                       "ACK %s %s attr=%s(%d) request=%lu reason=%d",
+                       ok ? "sent" : "send failed",
+                       elementText,
+                       attribute_name(value.attribute),
+                       static_cast<int>(value.attribute),
+                       static_cast<unsigned long>(inReplyToRequest),
+                       static_cast<int>(reason));
+    }
+    return ok;
+}
+
+bool send_attribute_reject(uint32_t elementId, uint32_t inReplyToRequest) {
+    if (g_state.client == nullptr || g_state.offlineDemo || !g_state.client->connected()) {
+        char elementText[160] = {};
+        describe_element(elementId, elementText, sizeof(elementText));
+        SCREENLIB_LOGW(kLogTag,
+                       "ACK reject not sent: client unavailable %s request=%lu",
+                       elementText,
+                       static_cast<unsigned long>(inReplyToRequest));
+        return false;
+    }
+
+    Envelope& env = g_state.txEnvelope;
+    reset_envelope(env);
+    env.which_payload = Envelope_attribute_changed_tag;
+    env.payload.attribute_changed.session_id = g_state.currentSessionId;
+    env.payload.attribute_changed.page_id = g_state.currentPageId;
+    env.payload.attribute_changed.element_id = elementId;
+    env.payload.attribute_changed.has_value = false;
+    env.payload.attribute_changed.reason = AttributeChangeReason_REASON_UNKNOWN;
+    env.payload.attribute_changed.in_reply_to_request = inReplyToRequest;
+    const bool ok = g_state.client->sendEnvelope(env);
+    char elementText[160] = {};
+    describe_element(elementId, elementText, sizeof(elementText));
+    SCREENLIB_LOGI(kLogTag,
+                   "ACK reject %s %s request=%lu",
+                   ok ? "sent" : "send failed",
+                   elementText,
+                   static_cast<unsigned long>(inReplyToRequest));
+    return ok;
 }
 
 bool send_text_chunk_abort(const TextChunkAbort& abort) {
@@ -946,7 +1045,30 @@ bool send_text_chunk_abort(const TextChunkAbort& abort) {
     reset_envelope(env);
     env.which_payload = Envelope_text_chunk_abort_tag;
     env.payload.text_chunk_abort = abort;
-    return g_state.client->sendEnvelope(env);
+    const bool ok = g_state.client->sendEnvelope(env);
+    if (abort.request_id != 0 || abort.transfer_id != 0) {
+        SCREENLIB_LOGI(kLogTag,
+                       "text chunk abort %s transfer=%lu request=%lu reason=%d",
+                       ok ? "sent" : "send failed",
+                       static_cast<unsigned long>(abort.transfer_id),
+                       static_cast<unsigned long>(abort.request_id),
+                       static_cast<int>(abort.reason));
+    }
+    return ok;
+}
+
+bool send_text_chunk_abort(uint32_t transferId,
+                           uint32_t requestId,
+                           TextChunkAbortReason reason) {
+    if (transferId == 0 && requestId == 0) {
+        return false;
+    }
+
+    TextChunkAbort abort = TextChunkAbort_init_zero;
+    abort.transfer_id = transferId;
+    abort.request_id = requestId;
+    abort.reason = reason;
+    return send_text_chunk_abort(abort);
 }
 
 bool is_active_online_page(uint32_t pageId) {
@@ -1014,18 +1136,34 @@ void handle_set_element_attribute(const SetElementAttribute& cmd) {
     ElementAttributeValue requested = ElementAttributeValue_init_zero;
     ElementAttributeValue applied = ElementAttributeValue_init_zero;
     if (!convert_set_cmd_to_attribute_value(cmd, requested)) {
+        char elementText[160] = {};
+        describe_element(cmd.element_id, elementText, sizeof(elementText));
         SCREENLIB_LOGW(kLogTag,
-                       "set_element_attribute convert failed element=%lu attr=%d",
-                       static_cast<unsigned long>(cmd.element_id),
-                       static_cast<int>(cmd.attribute));
+                       "set_element_attribute convert failed %s attr=%s(%d) request=%lu session=%lu",
+                       elementText,
+                       attribute_name(cmd.attribute),
+                       static_cast<int>(cmd.attribute),
+                       static_cast<unsigned long>(cmd.request_id),
+                       static_cast<unsigned long>(cmd.session_id));
+        if (cmd.request_id != 0) {
+            send_attribute_reject(cmd.element_id, cmd.request_id);
+        }
         return;
     }
 
     if (!g_state.adapter.applyAttributeValue(cmd.element_id, requested, applied)) {
+        char elementText[160] = {};
+        describe_element(cmd.element_id, elementText, sizeof(elementText));
         SCREENLIB_LOGW(kLogTag,
-                       "set_element_attribute apply failed element=%lu attr=%d",
-                       static_cast<unsigned long>(cmd.element_id),
-                       static_cast<int>(cmd.attribute));
+                       "set_element_attribute apply failed %s attr=%s(%d) request=%lu session=%lu",
+                       elementText,
+                       attribute_name(cmd.attribute),
+                       static_cast<int>(cmd.attribute),
+                       static_cast<unsigned long>(cmd.request_id),
+                       static_cast<unsigned long>(cmd.session_id));
+        if (cmd.request_id != 0) {
+            send_attribute_reject(cmd.element_id, cmd.request_id);
+        }
         return;
     }
 
@@ -1064,11 +1202,20 @@ void handle_text_chunk(const TextChunk& chunkMsg) {
 
     if (text.kind != TextChunkKind_TEXT_CHUNK_SET_ATTRIBUTE ||
         text.attribute != ElementAttribute_ELEMENT_ATTRIBUTE_TEXT) {
+        char elementText[160] = {};
+        describe_element(text.elementId, elementText, sizeof(elementText));
         SCREENLIB_LOGW(kLogTag,
-                       "unsupported text chunk kind=%d attr=%d transfer=%lu",
+                       "unsupported text chunk %s kind=%d attr=%s(%d) transfer=%lu request=%lu session=%lu",
+                       elementText,
                        static_cast<int>(text.kind),
+                       attribute_name(text.attribute),
                        static_cast<int>(text.attribute),
-                       static_cast<unsigned long>(text.transferId));
+                       static_cast<unsigned long>(text.transferId),
+                       static_cast<unsigned long>(text.requestId),
+                       static_cast<unsigned long>(text.sessionId));
+        send_text_chunk_abort(text.transferId,
+                              text.requestId,
+                              TextChunkAbortReason_TEXT_CHUNK_ABORT_METADATA_CHANGED);
         return;
     }
 
@@ -1084,9 +1231,20 @@ void handle_text_chunk(const TextChunk& chunkMsg) {
 
     ElementAttributeValue applied = ElementAttributeValue_init_zero;
     if (!g_state.adapter.applyTextAttribute(text.elementId, text.text.c_str(), applied)) {
+        char elementText[160] = {};
+        describe_element(text.elementId, elementText, sizeof(elementText));
         SCREENLIB_LOGW(kLogTag,
-                       "text chunk apply failed element=%lu",
-                       static_cast<unsigned long>(text.elementId));
+                       "text chunk apply failed %s attr=%s(%d) transfer=%lu request=%lu session=%lu text_len=%u",
+                       elementText,
+                       attribute_name(text.attribute),
+                       static_cast<int>(text.attribute),
+                       static_cast<unsigned long>(text.transferId),
+                       static_cast<unsigned long>(text.requestId),
+                       static_cast<unsigned long>(text.sessionId),
+                       static_cast<unsigned>(text.text.size()));
+        send_text_chunk_abort(text.transferId,
+                              text.requestId,
+                              TextChunkAbortReason_TEXT_CHUNK_ABORT_UNKNOWN);
         return;
     }
 
