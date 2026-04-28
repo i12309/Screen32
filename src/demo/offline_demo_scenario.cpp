@@ -19,11 +19,7 @@ constexpr uint32_t kDefaultPageOrder[] = {
     scr_WAIT,
     scr_KEYBOARD,
     scr_SERVICE,
-    scr_SERVICE2,
-    scr_DEF_PAGE,
-    scr_DEF_PAGE2,
-    scr_DEF_PAGE3,
-    scr_DEF_PAGE4,
+    scr_SERVICE2
 };
 
 constexpr OfflineDemoButtonRoute kDefaultButtonRoutes[] = {
@@ -32,7 +28,6 @@ constexpr OfflineDemoButtonRoute kDefaultButtonRoutes[] = {
     {btn_MAIN_NET, OfflineDemoNavigationAction::Goto, scr_INIT},
     {btn_MAIN_SERVICE, OfflineDemoNavigationAction::Goto, scr_SERVICE},
     {btn_MAIN_STATS, OfflineDemoNavigationAction::Goto, scr_WAIT},
-    {btn_MAIN_SUPPORT, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE},
 
     {btn_TASK_RUN_BACK, OfflineDemoNavigationAction::Back, 0},
     {btn_TASK_RUN_LIST_TASK, OfflineDemoNavigationAction::Goto, scr_INFO},
@@ -71,43 +66,11 @@ constexpr OfflineDemoButtonRoute kDefaultButtonRoutes[] = {
 
     {btn_SERVICE_BACK, OfflineDemoNavigationAction::Back, 0},
     {btn_NEXT_2, OfflineDemoNavigationAction::Goto, scr_SERVICE2},
-    {btn_SERVICE_TABLE, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE2},
-    {btn_SERVICE_PAPER, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE3},
-    {btn_SERVICE_GUILLOTINE, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE4},
     {btn_SERVICE_SLICE, OfflineDemoNavigationAction::Goto, scr_WAIT},
     {btn_SERVICE_CALIBRATION, OfflineDemoNavigationAction::Goto, scr_INFO},
     {btn_SERVICE_PROBA, OfflineDemoNavigationAction::Goto, scr_INPUT},
 
-    {btn_SERVICE2_BACK, OfflineDemoNavigationAction::Back, 0},
-    {btn_SERVICE_TABLE_1, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE2},
-    {btn_SERVICE_PAPER_1, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE3},
-    {btn_SERVICE_GUILLOTINE_1, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE4},
-
-    {btn_SIG1_6, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE2},
-    {btn_SIG1_7, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE3},
-    {btn_SIG1_8, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE4},
-    {btn_NEXT_3, OfflineDemoNavigationAction::Next, 0},
-    {btn_B1_1, OfflineDemoNavigationAction::Goto, scr_INFO},
-    {btn_B2_1, OfflineDemoNavigationAction::Goto, scr_INPUT},
-    {btn_B3_1, OfflineDemoNavigationAction::Goto, scr_INIT},
-    {btn_B4_1, OfflineDemoNavigationAction::Goto, scr_WAIT},
-    {btn_B5_1, OfflineDemoNavigationAction::Goto, scr_SERVICE},
-    {btn_B6_1, OfflineDemoNavigationAction::Goto, scr_MAIN},
-
-    {btn_BACK_5, OfflineDemoNavigationAction::Back, 0},
-    {btn_NEXT_13, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE3},
-    {btn_NEXT_14, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE4},
-    {btn_NEXT_15, OfflineDemoNavigationAction::Goto, scr_MAIN},
-
-    {btn_BACK_3, OfflineDemoNavigationAction::Back, 0},
-    {btn_NEXT_7, OfflineDemoNavigationAction::Goto, scr_DEF_PAGE4},
-    {btn_NEXT_8, OfflineDemoNavigationAction::Goto, scr_MAIN},
-    {btn_NEXT_9, OfflineDemoNavigationAction::Goto, scr_INFO},
-
-    {btn_BACK_4, OfflineDemoNavigationAction::Back, 0},
-    {btn_NEXT_10, OfflineDemoNavigationAction::Goto, scr_MAIN},
-    {btn_NEXT_11, OfflineDemoNavigationAction::Goto, scr_SERVICE},
-    {btn_NEXT_12, OfflineDemoNavigationAction::Goto, scr_INFO},
+    {btn_SERVICE2_BACK, OfflineDemoNavigationAction::Back, 0}
 };
 
 constexpr OfflineDemoPageTapRoute kDefaultPageTapRoutes[] = {

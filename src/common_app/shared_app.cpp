@@ -22,11 +22,7 @@ constexpr const char* kLogTag = "app";
 
 bool ui_objects_ready() {
     return objects.load != nullptr &&
-           objects.main != nullptr &&
-           objects.def_page != nullptr &&
-           objects.def_page2 != nullptr &&
-           objects.def_page3 != nullptr &&
-           objects.def_page4 != nullptr;
+           objects.main != nullptr;
 }
 
 void show_fallback_screen() {

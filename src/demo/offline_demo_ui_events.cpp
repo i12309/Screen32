@@ -121,14 +121,6 @@ lv_obj_t* find_page_root_by_id(uint32_t pageId) {
             return objects.service;
         case scr_SERVICE2:
             return objects.service2;
-        case scr_DEF_PAGE:
-            return objects.def_page;
-        case scr_DEF_PAGE2:
-            return objects.def_page2;
-        case scr_DEF_PAGE3:
-            return objects.def_page3;
-        case scr_DEF_PAGE4:
-            return objects.def_page4;
         default:
             return nullptr;
     }
