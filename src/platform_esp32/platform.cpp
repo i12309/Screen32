@@ -6,6 +6,9 @@
 #include "log/ScreenLibLogger.h"
 
 #include <Arduino.h>
+#include <driver/gpio.h>
+#include <driver/uart.h>
+#include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp32_smartdisplay.h>
 #include <lvgl.h>
@@ -70,61 +73,95 @@ namespace demo {
 
 namespace {
 
+// UART-транспорт через IDF API напрямую.
+// Используем UART_NUM_2; UART_NUM_0 занят USB-CDC (логи).
+// HardwareSerial обходим — у используемой версии Arduino-esp32 баг
+// в обработчике ошибок uartBegin (NPE при отказе uartSetPins/driver_install),
+// и нет способа получить код ошибки.
 class Esp32UartTransport : public ITransport {
 public:
-    static constexpr size_t kRxBufferSize = 4096;
-    static constexpr size_t kTxBufferSize = 2048;
+    static constexpr uart_port_t kPort = UART_NUM_2;
+    static constexpr size_t kRxBufferSize = 1024;
+    static constexpr size_t kTxBufferSize = 0;
 
-    bool begin(HardwareSerial* serial, uint32_t baud, int8_t rxPin, int8_t txPin) {
-        if (serial == nullptr || baud == 0) {
-            _serial = nullptr;
-            _started = false;
+    bool begin(uint32_t baud, int8_t rxPin, int8_t txPin) {
+        if (baud == 0) {
             return false;
         }
-        _serial = serial;
-        _serial->setRxBufferSize(kRxBufferSize);
-        _serial->setTxBufferSize(kTxBufferSize);
-        _serial->begin(baud, SERIAL_8N1, rxPin, txPin);
+        if (!GPIO_IS_VALID_GPIO(rxPin) || !GPIO_IS_VALID_OUTPUT_GPIO(txPin)) {
+            SCREENLIB_LOGE("platform.esp32",
+                           "uart pins invalid: rx=%d tx=%d",
+                           static_cast<int>(rxPin),
+                           static_cast<int>(txPin));
+            return false;
+        }
+        if (uart_is_driver_installed(kPort)) {
+            uart_driver_delete(kPort);
+        }
+
+        uart_config_t cfg = {};
+        cfg.baud_rate = static_cast<int>(baud);
+        cfg.data_bits = UART_DATA_8_BITS;
+        cfg.parity = UART_PARITY_DISABLE;
+        cfg.stop_bits = UART_STOP_BITS_1;
+        cfg.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+        cfg.source_clk = UART_SCLK_APB;
+
+        esp_err_t err = uart_param_config(kPort, &cfg);
+        if (err != ESP_OK) {
+            SCREENLIB_LOGE("platform.esp32", "uart_param_config -> %s",
+                           esp_err_to_name(err));
+            return false;
+        }
+        err = uart_set_pin(kPort, txPin, rxPin,
+                           UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+        if (err != ESP_OK) {
+            SCREENLIB_LOGE("platform.esp32", "uart_set_pin -> %s",
+                           esp_err_to_name(err));
+            return false;
+        }
+        err = uart_driver_install(kPort,
+                                  static_cast<int>(kRxBufferSize),
+                                  static_cast<int>(kTxBufferSize),
+                                  0, nullptr, 0);
+        if (err != ESP_OK) {
+            SCREENLIB_LOGE("platform.esp32", "uart_driver_install -> %s",
+                           esp_err_to_name(err));
+            return false;
+        }
+
         _started = true;
         SCREENLIB_LOGI("platform.esp32",
-                       "uart transport begin baud=%lu rx=%d tx=%d",
+                       "uart begin: baud=%lu rx=%d tx=%d",
                        static_cast<unsigned long>(baud),
                        static_cast<int>(rxPin),
                        static_cast<int>(txPin));
         return true;
     }
 
-    bool connected() const override {
-        return _started;
-    }
+    bool connected() const override { return _started; }
 
     bool write(const uint8_t* data, size_t len) override {
-        if (!_started || _serial == nullptr || data == nullptr || len == 0) {
+        if (!_started || data == nullptr || len == 0) {
             return false;
         }
-        return _serial->write(data, len) == len;
+        const int n = uart_write_bytes(kPort,
+                                       reinterpret_cast<const char*>(data),
+                                       len);
+        return n == static_cast<int>(len);
     }
 
     size_t read(uint8_t* dst, size_t max_len) override {
-        if (!_started || _serial == nullptr || dst == nullptr || max_len == 0) {
+        if (!_started || dst == nullptr || max_len == 0) {
             return 0;
         }
-
-        size_t n = 0;
-        while (n < max_len && _serial->available() > 0) {
-            const int ch = _serial->read();
-            if (ch < 0) {
-                break;
-            }
-            dst[n++] = static_cast<uint8_t>(ch);
-        }
-        return n;
+        const int n = uart_read_bytes(kPort, dst, max_len, 0);
+        return n > 0 ? static_cast<size_t>(n) : 0;
     }
 
     void tick() override {}
 
 private:
-    HardwareSerial* _serial = nullptr;
     bool _started = false;
 };
 
@@ -164,8 +201,7 @@ std::unique_ptr<ITransport> platform_create_transport(const FrontendConfig& conf
 
     if (config.transport.type == FrontendTransportType::Uart) {
         std::unique_ptr<Esp32UartTransport> transport(new Esp32UartTransport());
-        if (!transport->begin(&Serial1,
-                              config.transport.baud,
+        if (!transport->begin(config.transport.baud,
                               static_cast<int8_t>(config.transport.rxPin),
                               static_cast<int8_t>(config.transport.txPin))) {
             return nullptr;

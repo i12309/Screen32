@@ -1,6 +1,7 @@
 #include "common_app/FrontApp.h"
 
 #include <memory>
+#include <new>
 #include <stdio.h>
 #include <string.h>
 #include <vector>
@@ -24,6 +25,7 @@
 
 #if defined(ARDUINO)
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <esp_system.h>
 #endif
 
@@ -82,7 +84,33 @@ struct State {
           adapter(&objectMap) {}
 };
 
-State g_state;
+// State содержит крупные массивы (objectBindings/pageBindings/tracked, txEnvelope).
+// Кладём его в PSRAM, чтобы не съедать ограниченную внутреннюю DRAM
+// (нужна драйверам железа: UART, DMA, прерываниям).
+// Создаётся в frontapp::init() через placement-new в PSRAM.
+State* g_state_ptr = nullptr;
+#define g_state (*g_state_ptr)
+
+bool ensure_state_allocated() {
+    if (g_state_ptr != nullptr) {
+        return true;
+    }
+    const size_t bytes = sizeof(State);
+#if defined(ARDUINO)
+    void* mem = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (mem == nullptr) {
+        // PSRAM недоступна — fallback на обычный heap (DRAM).
+        mem = ::operator new(bytes, std::nothrow);
+    }
+#else
+    void* mem = ::operator new(bytes, std::nothrow);
+#endif
+    if (mem == nullptr) {
+        return false;
+    }
+    g_state_ptr = new (mem) State();
+    return true;
+}
 
 void reset_envelope(Envelope& env) {
     memset(&env, 0, sizeof(env));
@@ -507,8 +535,34 @@ struct ButtonEventState {
     bool suppressClick = false;
 };
 
-ButtonEventState g_buttonStates[SCREEN32_ELEMENT_DESCRIPTOR_COUNT] = {};
+// g_buttonStates выделяется в PSRAM при первом обращении: 180 × ~8 байт
+// в DRAM нам не нужны.
+constexpr size_t kButtonStatesCapacity = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
+ButtonEventState* g_buttonStates = nullptr;
 size_t g_buttonStateCount = 0;
+
+bool ensure_button_states_allocated() {
+    if (g_buttonStates != nullptr) {
+        return true;
+    }
+    const size_t bytes = sizeof(ButtonEventState) * kButtonStatesCapacity;
+#if defined(ARDUINO)
+    void* mem = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (mem == nullptr) {
+        mem = ::operator new(bytes, std::nothrow);
+    }
+#else
+    void* mem = ::operator new(bytes, std::nothrow);
+#endif
+    if (mem == nullptr) {
+        return false;
+    }
+    g_buttonStates = static_cast<ButtonEventState*>(mem);
+    for (size_t i = 0; i < kButtonStatesCapacity; ++i) {
+        new (&g_buttonStates[i]) ButtonEventState();
+    }
+    return true;
+}
 KeyboardController g_keyboardController;
 
 const demo::Screen32BoundElement* find_tracked_element_by_id(uint32_t elementId) {
@@ -667,6 +721,10 @@ void attach_generated_ui_events(const demo::Screen32BoundElement* trackedElement
     g_trackedCount = trackedCount;
     g_uiEventSink = sink;
     g_buttonStateCount = 0;
+    if (!ensure_button_states_allocated()) {
+        SCREENLIB_LOGE(kLogTag, "failed to allocate button states");
+        return;
+    }
 
     for (size_t i = 0; i < trackedCount; ++i) {
         const demo::Screen32BoundElement& tracked = trackedElements[i];
@@ -675,7 +733,7 @@ void attach_generated_ui_events(const demo::Screen32BoundElement* trackedElement
         }
 
         if (tracked.descriptor->emits_button_event) {
-            if (g_buttonStateCount < SCREEN32_ELEMENT_DESCRIPTOR_COUNT) {
+            if (g_buttonStateCount < kButtonStatesCapacity) {
                 ButtonEventState& state = g_buttonStates[g_buttonStateCount++];
                 state.elementId = tracked.elementId;
                 state.isPressed = false;
@@ -1553,6 +1611,10 @@ bool start_offline_demo_mode(const demo::FrontendConfig& config) {
 } // namespace
 
 bool init(const demo::FrontendConfig& config) {
+    if (!ensure_state_allocated()) {
+        SCREENLIB_LOGE(kLogTag, "failed to allocate frontend state");
+        return false;
+    }
     if (g_state.initialized) {
         return true;
     }
@@ -1599,7 +1661,7 @@ bool init(const demo::FrontendConfig& config) {
 }
 
 void tick() {
-    if (!g_state.initialized) {
+    if (g_state_ptr == nullptr || !g_state.initialized) {
         return;
     }
 
