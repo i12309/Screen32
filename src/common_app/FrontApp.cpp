@@ -37,6 +37,9 @@ constexpr size_t kMaxPageBindings = SCREEN32_PAGE_DESCRIPTOR_COUNT;
 constexpr size_t kMaxTrackedElements = SCREEN32_ELEMENT_DESCRIPTOR_COUNT;
 constexpr uint32_t kHelloRetryPeriodMs = 5000;
 constexpr uint32_t kWaitLogPeriodMs = 5000;
+constexpr uint32_t kMinCommitTimeoutMs = 300;
+constexpr uint32_t kDefaultCommitTimeoutMs = 1500;
+constexpr uint32_t kMaxCommitTimeoutMs = 8000;
 constexpr const char* kLogTag = "frontapp";
 constexpr const char* kTrafficLogTag = "frontapp.traffic";
 
@@ -63,6 +66,16 @@ struct State {
     FrontendState frontendState = FrontendState::OfflineDemo;
     uint32_t pageLoadStartedAtMs = 0;
     uint32_t snapshotSentForSession = 0;
+    struct PendingPageTransaction {
+        bool active = false;
+        uint32_t pageId = 0;
+        uint32_t sessionId = 0;
+        uint32_t startedAtMs = 0;
+        uint32_t commitDeadlineMs = 0;
+        bool pagePrepared = false;
+        bool dataFailed = false;
+    } pendingPage;
+    uint32_t timedOutSessionId = 0;
 
     std::unique_ptr<ITransport> transport;
     std::unique_ptr<screenlib::client::ScreenClient> client;
@@ -180,6 +193,14 @@ const char* envelope_payload_name(pb_size_t whichPayload) {
         case Envelope_attribute_changed_tag: return "attribute_changed";
         case Envelope_text_chunk_tag: return "text_chunk";
         case Envelope_text_chunk_abort_tag: return "text_chunk_abort";
+        case Envelope_prepare_page_tag: return "prepare_page";
+        case Envelope_page_prepared_tag: return "page_prepared";
+        case Envelope_apply_page_data_tag: return "apply_page_data";
+        case Envelope_page_data_applied_tag: return "page_data_applied";
+        case Envelope_commit_page_tag: return "commit_page";
+        case Envelope_page_shown_tag: return "page_shown";
+        case Envelope_abort_prepared_page_tag: return "abort_prepared_page";
+        case Envelope_page_transaction_timeout_tag: return "page_transaction_timeout";
         default: return "unknown";
     }
 }
@@ -465,6 +486,78 @@ void describe_envelope(const Envelope& env, char* out, size_t outSize) {
                      static_cast<int>(env.payload.text_chunk.kind),
                      static_cast<unsigned>(env.payload.text_chunk.chunk_data.size),
                      static_cast<unsigned long>(env.payload.text_chunk.request_id));
+            break;
+        case Envelope_prepare_page_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu timeout=%lu initial=%d",
+                     static_cast<unsigned long>(env.payload.prepare_page.page_id),
+                     static_cast<unsigned long>(env.payload.prepare_page.session_id),
+                     static_cast<unsigned long>(env.payload.prepare_page.commit_timeout_ms),
+                     env.payload.prepare_page.has_initial_data ? 1 : 0);
+            break;
+        case Envelope_page_prepared_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu ok=%d error=%d",
+                     static_cast<unsigned long>(env.payload.page_prepared.page_id),
+                     static_cast<unsigned long>(env.payload.page_prepared.session_id),
+                     env.payload.page_prepared.ok ? 1 : 0,
+                     static_cast<int>(env.payload.page_prepared.error));
+            break;
+        case Envelope_apply_page_data_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu block=%lu/%lu elements=%u",
+                     static_cast<unsigned long>(env.payload.apply_page_data.page_id),
+                     static_cast<unsigned long>(env.payload.apply_page_data.session_id),
+                     static_cast<unsigned long>(env.payload.apply_page_data.block_index),
+                     static_cast<unsigned long>(env.payload.apply_page_data.block_count),
+                     static_cast<unsigned>(env.payload.apply_page_data.elements_count));
+            break;
+        case Envelope_page_data_applied_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu block=%lu ok=%d applied=%lu failed=%lu error=%d",
+                     static_cast<unsigned long>(env.payload.page_data_applied.page_id),
+                     static_cast<unsigned long>(env.payload.page_data_applied.session_id),
+                     static_cast<unsigned long>(env.payload.page_data_applied.block_index),
+                     env.payload.page_data_applied.ok ? 1 : 0,
+                     static_cast<unsigned long>(env.payload.page_data_applied.applied_count),
+                     static_cast<unsigned long>(env.payload.page_data_applied.failed_count),
+                     static_cast<int>(env.payload.page_data_applied.error));
+            break;
+        case Envelope_commit_page_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu",
+                     static_cast<unsigned long>(env.payload.commit_page.page_id),
+                     static_cast<unsigned long>(env.payload.commit_page.session_id));
+            break;
+        case Envelope_page_shown_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu ok=%d error=%d",
+                     static_cast<unsigned long>(env.payload.page_shown.page_id),
+                     static_cast<unsigned long>(env.payload.page_shown.session_id),
+                     env.payload.page_shown.ok ? 1 : 0,
+                     static_cast<int>(env.payload.page_shown.error));
+            break;
+        case Envelope_abort_prepared_page_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu reason=%d",
+                     static_cast<unsigned long>(env.payload.abort_prepared_page.page_id),
+                     static_cast<unsigned long>(env.payload.abort_prepared_page.session_id),
+                     static_cast<int>(env.payload.abort_prepared_page.reason));
+            break;
+        case Envelope_page_transaction_timeout_tag:
+            snprintf(out,
+                     outSize,
+                     "page=%lu session=%lu waited=%lu",
+                     static_cast<unsigned long>(env.payload.page_transaction_timeout.page_id),
+                     static_cast<unsigned long>(env.payload.page_transaction_timeout.session_id),
+                     static_cast<unsigned long>(env.payload.page_transaction_timeout.waited_ms));
             break;
         case Envelope_text_chunk_abort_tag:
             snprintf(out,
@@ -936,6 +1029,76 @@ bool send_current_page(uint32_t pageId, uint32_t requestId) {
     return g_state.client->sendEnvelope(env);
 }
 
+bool send_page_prepared(uint32_t pageId,
+                        uint32_t sessionId,
+                        bool ok,
+                        PageTransitionError error) {
+    if (g_state.client == nullptr) {
+        return false;
+    }
+    Envelope& env = g_state.txEnvelope;
+    reset_envelope(env);
+    env.which_payload = Envelope_page_prepared_tag;
+    env.payload.page_prepared.page_id = pageId;
+    env.payload.page_prepared.session_id = sessionId;
+    env.payload.page_prepared.ok = ok;
+    env.payload.page_prepared.error = error;
+    return g_state.client->sendEnvelope(env);
+}
+
+bool send_page_data_applied(uint32_t pageId,
+                            uint32_t sessionId,
+                            uint32_t blockIndex,
+                            bool ok,
+                            uint32_t appliedCount,
+                            uint32_t failedCount,
+                            PageTransitionError error) {
+    if (g_state.client == nullptr) {
+        return false;
+    }
+    Envelope& env = g_state.txEnvelope;
+    reset_envelope(env);
+    env.which_payload = Envelope_page_data_applied_tag;
+    env.payload.page_data_applied.page_id = pageId;
+    env.payload.page_data_applied.session_id = sessionId;
+    env.payload.page_data_applied.block_index = blockIndex;
+    env.payload.page_data_applied.ok = ok;
+    env.payload.page_data_applied.applied_count = appliedCount;
+    env.payload.page_data_applied.failed_count = failedCount;
+    env.payload.page_data_applied.error = error;
+    return g_state.client->sendEnvelope(env);
+}
+
+bool send_page_shown(uint32_t pageId,
+                     uint32_t sessionId,
+                     bool ok,
+                     PageTransitionError error) {
+    if (g_state.client == nullptr) {
+        return false;
+    }
+    Envelope& env = g_state.txEnvelope;
+    reset_envelope(env);
+    env.which_payload = Envelope_page_shown_tag;
+    env.payload.page_shown.page_id = pageId;
+    env.payload.page_shown.session_id = sessionId;
+    env.payload.page_shown.ok = ok;
+    env.payload.page_shown.error = error;
+    return g_state.client->sendEnvelope(env);
+}
+
+bool send_page_transaction_timeout(uint32_t pageId, uint32_t sessionId, uint32_t waitedMs) {
+    if (g_state.client == nullptr) {
+        return false;
+    }
+    Envelope& env = g_state.txEnvelope;
+    reset_envelope(env);
+    env.which_payload = Envelope_page_transaction_timeout_tag;
+    env.payload.page_transaction_timeout.page_id = pageId;
+    env.payload.page_transaction_timeout.session_id = sessionId;
+    env.payload.page_transaction_timeout.waited_ms = waitedMs;
+    return g_state.client->sendEnvelope(env);
+}
+
 uint32_t next_transfer_id() {
     const uint32_t transferId = g_state.nextTransferId++;
     if (g_state.nextTransferId == 0) {
@@ -1135,6 +1298,28 @@ bool is_active_online_page(uint32_t pageId) {
            pageId == g_state.currentPageId;
 }
 
+uint32_t effective_commit_timeout_ms(uint32_t requestedMs) {
+    uint32_t timeout = requestedMs == 0 ? kDefaultCommitTimeoutMs : requestedMs;
+    if (timeout < kMinCommitTimeoutMs) {
+        timeout = kMinCommitTimeoutMs;
+    }
+    if (timeout > kMaxCommitTimeoutMs) {
+        timeout = kMaxCommitTimeoutMs;
+    }
+    return timeout;
+}
+
+bool pending_page_matches(uint32_t pageId, uint32_t sessionId) {
+    return g_state.pendingPage.active &&
+           g_state.pendingPage.pageId == pageId &&
+           g_state.pendingPage.sessionId == sessionId;
+}
+
+void clear_pending_page() {
+    g_state.pendingPage = State::PendingPageTransaction{};
+    g_state.textAssembler.reset();
+}
+
 void abort_stale_text_chunk(const TextChunk& chunkMsg) {
     if (chunkMsg.request_id == 0 && chunkMsg.transfer_id == 0) {
         return;
@@ -1181,8 +1366,12 @@ bool convert_set_cmd_to_attribute_value(const SetElementAttribute& cmd, ElementA
 }
 
 void handle_set_element_attribute(const SetElementAttribute& cmd) {
-    if (g_state.frontendState != FrontendState::PageActive ||
-        (cmd.session_id != 0 && cmd.session_id != g_state.currentSessionId)) {
+    const bool targetsPending = cmd.session_id != 0 &&
+                                g_state.pendingPage.active &&
+                                cmd.session_id == g_state.pendingPage.sessionId;
+    const bool targetsCurrent = cmd.session_id == 0 || cmd.session_id == g_state.currentSessionId;
+    if (!targetsPending &&
+        (g_state.frontendState != FrontendState::PageActive || !targetsCurrent)) {
         SCREENLIB_LOGD(kLogTag,
                        "stale set_element_attribute ignored: session=%lu/%lu element=%lu",
                        static_cast<unsigned long>(cmd.session_id),
@@ -1235,7 +1424,12 @@ void handle_set_element_attribute(const SetElementAttribute& cmd) {
 }
 
 void handle_text_chunk(const TextChunk& chunkMsg) {
-    if (chunkMsg.session_id != 0 && chunkMsg.session_id != g_state.currentSessionId) {
+    const bool chunkTargetsPending = chunkMsg.session_id != 0 &&
+                                     g_state.pendingPage.active &&
+                                     chunkMsg.session_id == g_state.pendingPage.sessionId;
+    const bool chunkTargetsCurrent = chunkMsg.session_id == 0 ||
+                                     chunkMsg.session_id == g_state.currentSessionId;
+    if (!chunkTargetsPending && !chunkTargetsCurrent) {
         SCREENLIB_LOGD(kLogTag,
                        "stale text chunk ignored: session=%lu/%lu transfer=%lu",
                        static_cast<unsigned long>(chunkMsg.session_id),
@@ -1277,7 +1471,11 @@ void handle_text_chunk(const TextChunk& chunkMsg) {
         return;
     }
 
-    if (text.sessionId != 0 && text.sessionId != g_state.currentSessionId) {
+    const bool textTargetsPending = text.sessionId != 0 &&
+                                    g_state.pendingPage.active &&
+                                    text.sessionId == g_state.pendingPage.sessionId;
+    const bool textTargetsCurrent = text.sessionId == 0 || text.sessionId == g_state.currentSessionId;
+    if (!textTargetsPending && !textTargetsCurrent) {
         SCREENLIB_LOGD(kLogTag,
                        "stale text chunk ignored: session=%lu/%lu element=%lu",
                        static_cast<unsigned long>(text.sessionId),
@@ -1312,6 +1510,149 @@ void handle_text_chunk(const TextChunk& chunkMsg) {
                               AttributeChangeReason_REASON_COMMAND_APPLIED,
                               text.requestId);
     }
+}
+
+void handle_prepare_page(const PreparePage& msg) {
+    clear_pending_page();
+
+    if (!is_valid_page_id(msg.page_id) || !g_state.adapter.preparePage(msg.page_id)) {
+        send_page_prepared(msg.page_id,
+                           msg.session_id,
+                           false,
+                           PageTransitionError_PAGE_TRANSITION_UNKNOWN_PAGE);
+        return;
+    }
+
+    const uint32_t now = ::platform_tick_ms();
+    g_state.pendingPage.active = true;
+    g_state.pendingPage.pageId = msg.page_id;
+    g_state.pendingPage.sessionId = msg.session_id;
+    g_state.pendingPage.startedAtMs = now;
+    g_state.pendingPage.commitDeadlineMs = now + effective_commit_timeout_ms(msg.commit_timeout_ms);
+    g_state.pendingPage.pagePrepared = true;
+    g_state.pendingPage.dataFailed = false;
+    g_state.timedOutSessionId = 0;
+    g_state.backendConnected = true;
+    g_state.online = true;
+    g_state.offlineDemo = false;
+
+    send_page_prepared(msg.page_id,
+                       msg.session_id,
+                       true,
+                       PageTransitionError_PAGE_TRANSITION_OK);
+}
+
+void handle_apply_page_data(const ApplyPageData& msg) {
+    if (!pending_page_matches(msg.page_id, msg.session_id)) {
+        if (msg.session_id != g_state.timedOutSessionId) {
+            send_page_data_applied(msg.page_id,
+                                   msg.session_id,
+                                   msg.block_index,
+                                   false,
+                                   0,
+                                   0,
+                                   PageTransitionError_PAGE_TRANSITION_BAD_SESSION);
+        }
+        return;
+    }
+
+    uint32_t appliedCount = 0;
+    uint32_t failedCount = 0;
+    for (pb_size_t i = 0; i < msg.elements_count; ++i) {
+        const ElementSnapshot& element = msg.elements[i];
+        for (pb_size_t j = 0; j < element.attributes_count; ++j) {
+            ElementAttributeValue applied = ElementAttributeValue_init_zero;
+            if (g_state.adapter.applyAttributeValue(element.element_id, element.attributes[j], applied)) {
+                appliedCount++;
+            } else {
+                failedCount++;
+            }
+        }
+    }
+
+    const bool ok = appliedCount > 0 || failedCount == 0;
+    if (!ok) {
+        g_state.pendingPage.dataFailed = true;
+    }
+    send_page_data_applied(msg.page_id,
+                           msg.session_id,
+                           msg.block_index,
+                           ok,
+                           appliedCount,
+                           failedCount,
+                           ok ? PageTransitionError_PAGE_TRANSITION_OK
+                              : PageTransitionError_PAGE_TRANSITION_DATA_FAILED);
+}
+
+void commit_pending_page(uint32_t pageId, uint32_t sessionId) {
+    if (!pending_page_matches(pageId, sessionId)) {
+        return;
+    }
+
+    if (!g_state.pendingPage.pagePrepared || g_state.pendingPage.dataFailed) {
+        send_page_shown(pageId,
+                        sessionId,
+                        false,
+                        g_state.pendingPage.dataFailed
+                            ? PageTransitionError_PAGE_TRANSITION_DATA_FAILED
+                            : PageTransitionError_PAGE_TRANSITION_CREATE_FAILED);
+        return;
+    }
+
+    g_state.currentPageId = pageId;
+    g_state.currentSessionId = sessionId;
+    g_state.frontendState = FrontendState::LoadingPage;
+    g_state.pageLoadStartedAtMs = ::platform_tick_ms();
+    g_state.snapshotSentForSession = 0;
+
+    if (!g_state.adapter.showPage(pageId)) {
+        g_state.frontendState = FrontendState::OnlineIdle;
+        send_page_shown(pageId, sessionId, false, PageTransitionError_PAGE_TRANSITION_CREATE_FAILED);
+        return;
+    }
+
+    g_state.adapter.installChangeListeners(pageId, &on_attribute_change, nullptr);
+    if (send_snapshot_for_current_page()) {
+        g_state.frontendState = FrontendState::PageActive;
+    } else {
+        g_state.frontendState = FrontendState::OnlineIdle;
+    }
+
+    clear_pending_page();
+    send_page_shown(pageId, sessionId, true, PageTransitionError_PAGE_TRANSITION_OK);
+}
+
+void handle_commit_page(const CommitPage& msg) {
+    commit_pending_page(msg.page_id, msg.session_id);
+}
+
+void handle_abort_prepared_page(const AbortPreparedPage& msg) {
+    if (!pending_page_matches(msg.page_id, msg.session_id)) {
+        return;
+    }
+    clear_pending_page();
+}
+
+void poll_pending_page_timeout(uint32_t now) {
+    if (!g_state.pendingPage.active || !g_state.pendingPage.pagePrepared) {
+        return;
+    }
+    if (static_cast<int32_t>(now - g_state.pendingPage.commitDeadlineMs) < 0) {
+        return;
+    }
+
+    const uint32_t pageId = g_state.pendingPage.pageId;
+    const uint32_t sessionId = g_state.pendingPage.sessionId;
+    const uint32_t waitedMs = now - g_state.pendingPage.startedAtMs;
+    clear_pending_page();
+    g_state.timedOutSessionId = sessionId;
+
+    if (g_state.adapter.showPage(scr_LOAD)) {
+        g_state.currentPageId = scr_LOAD;
+        g_state.currentSessionId = sessionId;
+        g_state.frontendState = FrontendState::PageActive;
+    }
+    send_page_transaction_timeout(pageId, sessionId, waitedMs);
 }
 
 bool on_adapter_event(const Envelope& source, void* userData) {
@@ -1445,6 +1786,12 @@ void handle_incoming_envelope(const Envelope& env) {
     switch (env.which_payload) {
         case Envelope_show_page_tag: {
             const ShowPage& msg = env.payload.show_page;
+            if (pending_page_matches(msg.page_id, msg.session_id)) {
+                commit_pending_page(msg.page_id, msg.session_id);
+                break;
+            }
+            clear_pending_page();
+            g_state.timedOutSessionId = 0;
             g_state.currentPageId = msg.page_id;
             g_state.currentSessionId = msg.session_id;
             g_state.backendConnected = true;
@@ -1471,6 +1818,18 @@ void handle_incoming_envelope(const Envelope& env) {
             }
             break;
         }
+        case Envelope_prepare_page_tag:
+            handle_prepare_page(env.payload.prepare_page);
+            break;
+        case Envelope_apply_page_data_tag:
+            handle_apply_page_data(env.payload.apply_page_data);
+            break;
+        case Envelope_commit_page_tag:
+            handle_commit_page(env.payload.commit_page);
+            break;
+        case Envelope_abort_prepared_page_tag:
+            handle_abort_prepared_page(env.payload.abort_prepared_page);
+            break;
         case Envelope_set_element_attribute_tag:
             handle_set_element_attribute(env.payload.set_element_attribute);
             break;
@@ -1489,7 +1848,9 @@ void handle_incoming_envelope(const Envelope& env) {
             break;
         case Envelope_request_current_page_tag:
             send_current_page(
-                g_keyboardController.logicalPageId(demo::screen32_current_page_id()),
+                g_state.currentPageId != 0
+                    ? g_state.currentPageId
+                    : g_keyboardController.logicalPageId(demo::screen32_current_page_id()),
                 env.payload.request_current_page.request_id);
             break;
         default:
@@ -1560,6 +1921,8 @@ bool start_online_mode(const demo::FrontendConfig& config) {
     g_state.nextTransferId = 1;
     g_state.currentSessionId = 0;
     g_state.snapshotSentForSession = 0;
+    clear_pending_page();
+    g_state.timedOutSessionId = 0;
     g_state.client->setEventHandler(&on_client_event, &g_state);
     g_state.client->init();
 
@@ -1588,6 +1951,8 @@ bool start_offline_demo_mode(const demo::FrontendConfig& config) {
     g_state.frontendState = FrontendState::OfflineDemo;
     g_state.currentSessionId = 0;
     g_state.snapshotSentForSession = 0;
+    clear_pending_page();
+    g_state.timedOutSessionId = 0;
     g_state.waitStartMs = 0;
     g_state.lastWaitLogMs = 0;
 
@@ -1669,9 +2034,10 @@ void tick() {
     }
 
     if (g_state.online && g_state.client != nullptr) {
-        g_state.client->tick();
-
         const uint32_t now = ::platform_tick_ms();
+        g_state.client->tick(now);
+        poll_pending_page_timeout(now);
+
         TextChunkAbort abort = TextChunkAbort_init_zero;
         while (g_state.textAssembler.pollTimeout(now, abort)) {
             SCREENLIB_LOGW(kLogTag,

@@ -67,8 +67,9 @@ void app_setup() {
 
 void app_loop() {
     if (!g_fallback_mode) {
-        app_core_tick();
+        app_core_tick_time_and_input();
         frontapp::tick();
+        app_core_render();
         return;
     }
 

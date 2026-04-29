@@ -24,6 +24,11 @@ void app_core_init(void) {
 }
 
 void app_core_tick(void) {
+    app_core_tick_time_and_input();
+    app_core_render();
+}
+
+void app_core_tick_time_and_input(void) {
     // Обновляем LVGL-тик на прошедшее время.
     const uint32_t now = platform_tick_ms();
     const uint32_t delta = now - g_last_tick_ms;
@@ -35,6 +40,9 @@ void app_core_tick(void) {
     if (!g_fallback_mode) {
         ui_tick();
     }
+}
+
+void app_core_render(void) {
     // Выполняем таймеры и задачи LVGL.
     lv_timer_handler();
 }

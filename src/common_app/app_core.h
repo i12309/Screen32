@@ -16,6 +16,8 @@ void app_core_init(void);
 
 // Основной шаг цикла: обновление тика LVGL, ui_tick и lv_timer_handler.
 void app_core_tick(void);
+void app_core_tick_time_and_input(void);
+void app_core_render(void);
 
 // Текущее время в миллисекундах из платформенного слоя.
 uint32_t platform_tick_ms(void);
