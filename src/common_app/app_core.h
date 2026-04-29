@@ -20,6 +20,9 @@ void app_core_tick(void);
 // Текущее время в миллисекундах из платформенного слоя.
 uint32_t platform_tick_ms(void);
 
+// Диагностический снимок памяти платформы. На web-платформе может быть no-op.
+void platform_log_heap(const char *tag);
+
 #ifdef __cplusplus
 }
 #endif

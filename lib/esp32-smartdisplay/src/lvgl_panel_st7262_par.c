@@ -29,6 +29,14 @@ lv_display_t *lvgl_lcd_init()
     uint32_t px_size = lv_color_format_get_size(cf);
     uint32_t drawBufferSize = px_size * LVGL_BUFFER_PIXELS;
     void *drawBuffer = heap_caps_malloc(drawBufferSize, LVGL_BUFFER_MALLOC_FLAGS);
+    if (drawBuffer == NULL)
+    {
+        log_e("LVGL draw buffer allocation failed: %lu bytes, flags=0x%lx",
+              (unsigned long)drawBufferSize,
+              (unsigned long)LVGL_BUFFER_MALLOC_FLAGS);
+        abort();
+    }
+    log_i("LVGL draw buffer: ptr=%p size=%lu", drawBuffer, (unsigned long)drawBufferSize);
     lv_display_set_buffers(display, drawBuffer, NULL, drawBufferSize, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     // Create direct_io panel handle

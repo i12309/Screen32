@@ -1611,10 +1611,12 @@ bool start_offline_demo_mode(const demo::FrontendConfig& config) {
 } // namespace
 
 bool init(const demo::FrontendConfig& config) {
+    ::platform_log_heap("frontapp::init: before ensure_state_allocated");
     if (!ensure_state_allocated()) {
         SCREENLIB_LOGE(kLogTag, "failed to allocate frontend state");
         return false;
     }
+    ::platform_log_heap("frontapp::init: after ensure_state_allocated");
     if (g_state.initialized) {
         return true;
     }
@@ -1645,6 +1647,7 @@ bool init(const demo::FrontendConfig& config) {
     g_keyboardController.setInputEventSink(sink.userData, sink.onInputEventText);
     attach_generated_ui_events(g_state.tracked, g_state.trackedCount, sink);
     demo::offline_demo_ui_events_init(g_state.tracked, g_state.trackedCount, &on_ui_object_click, &g_state);
+    ::platform_log_heap("frontapp::init: after bind map/events");
 
     bool useOfflineDemo = config.offlineDemo || config.transport.type == demo::FrontendTransportType::None;
     if (!useOfflineDemo) {

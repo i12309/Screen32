@@ -43,7 +43,9 @@ void show_fallback_screen() {
 } // namespace
 
 void app_setup() {
+    platform_log_heap("app_setup: before app_core_init");
     app_core_init();
+    platform_log_heap("app_setup: after app_core_init");
     g_fallback_last_tick = platform_tick_ms();
 
     if (!ui_objects_ready()) {
@@ -57,6 +59,7 @@ void app_setup() {
     const bool cfgLoaded = frontend_load_config(frontendConfig);
     SCREENLIB_LOGI(kLogTag, "frontend config loaded=%d", cfgLoaded ? 1 : 0);
     frontapp::init(frontendConfig);
+    platform_log_heap("app_setup: after frontapp_init");
 
     lv_obj_invalidate(lv_scr_act());
     lv_refr_now(nullptr);

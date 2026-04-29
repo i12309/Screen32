@@ -263,6 +263,13 @@ void platform_log(const char *fmt, ...) {
     va_end(args);
 }
 
+void platform_log_heap(const char *tag) {
+    screenlib::log::Logger::log(screenlib::log::Level::Debug,
+                                "platform.web",
+                                "heap %s: n/a",
+                                tag != nullptr ? tag : "?");
+}
+
 namespace demo {
 
 namespace {

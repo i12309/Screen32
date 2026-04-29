@@ -23,20 +23,34 @@
  * Файл отвечает за инициализацию железа и сервисные функции платформы.
  */
 
+namespace {
+
+void on_failed_alloc(size_t size, uint32_t caps, const char* function_name) {
+    SCREENLIB_LOGE("heap",
+                   "alloc failed: size=%lu caps=0x%lx function=%s",
+                   static_cast<unsigned long>(size),
+                   static_cast<unsigned long>(caps),
+                   function_name != nullptr ? function_name : "?");
+}
+
+} // namespace
+
 void platform_init(void) {
     // Запуск последовательного лога и инициализация экрана/тача.
     Serial.begin(115200);
     screenlib::log::Logger::init(screenlib::log::Level::Debug);
     SCREENLIB_LOGI("platform.esp32", "platform init");
-
-    smartdisplay_init();
-    smartdisplay_lcd_set_backlight(1.0f);
-
-    // Фиксируем стартовые значения памяти после инициализации.
+    heap_caps_register_failed_alloc_callback(on_failed_alloc);
     SCREENLIB_LOGI("platform.esp32",
-                   "heap after init: 8bit=%lu, psram=%lu",
-                   static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_8BIT)),
-                   static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
+                   "psram found=%d size=%lu free=%lu",
+                   psramFound() ? 1 : 0,
+                   static_cast<unsigned long>(ESP.getPsramSize()),
+                   static_cast<unsigned long>(ESP.getFreePsram()));
+
+    platform_log_heap("platform_init: before smartdisplay_init");
+    smartdisplay_init();
+    platform_log_heap("platform_init: after smartdisplay_init");
+    smartdisplay_lcd_set_backlight(1.0f);
 }
 
 uint32_t platform_tick_ms(void) {
@@ -56,15 +70,19 @@ void platform_log(const char *fmt, ...) {
 
 void platform_log_heap(const char *tag) {
     // Диагностический снимок состояния кучи.
-    const uint32_t free_8bit = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    const uint32_t free_internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    const uint32_t largest_internal = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    const uint32_t free_dma = heap_caps_get_free_size(MALLOC_CAP_DMA);
+    const uint32_t largest_dma = heap_caps_get_largest_free_block(MALLOC_CAP_DMA);
     const uint32_t free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-    const uint32_t largest_8bit = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     const uint32_t largest_psram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
     SCREENLIB_LOGI("platform.esp32",
-                   "heap %s: 8bit=%lu (largest=%lu), psram=%lu (largest=%lu)",
+                   "heap %s: INTERNAL=%lu largest=%lu, DMA=%lu largest=%lu, PSRAM=%lu largest=%lu",
                    tag,
-                   static_cast<unsigned long>(free_8bit),
-                   static_cast<unsigned long>(largest_8bit),
+                   static_cast<unsigned long>(free_internal),
+                   static_cast<unsigned long>(largest_internal),
+                   static_cast<unsigned long>(free_dma),
+                   static_cast<unsigned long>(largest_dma),
                    static_cast<unsigned long>(free_psram),
                    static_cast<unsigned long>(largest_psram));
 }
@@ -120,10 +138,12 @@ public:
                            esp_err_to_name(err));
             return false;
         }
+        platform_log_heap("platform_create_transport: before uart_driver_install");
         err = uart_driver_install(kPort,
                                   static_cast<int>(kRxBufferSize),
                                   static_cast<int>(kTxBufferSize),
                                   0, nullptr, 0);
+        platform_log_heap("platform_create_transport: after uart_driver_install");
         if (err != ESP_OK) {
             SCREENLIB_LOGE("platform.esp32", "uart_driver_install -> %s",
                            esp_err_to_name(err));

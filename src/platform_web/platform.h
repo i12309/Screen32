@@ -25,6 +25,9 @@ void platform_delay_ms(uint32_t ms);
 // Пишет форматированный лог в консоль браузера.
 void platform_log(const char *fmt, ...);
 
+// Web-платформа не имеет ESP32 heap caps, поэтому логирует только маркер этапа.
+void platform_log_heap(const char *tag);
+
 #ifdef __cplusplus
 }
 #endif
