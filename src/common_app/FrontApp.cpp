@@ -21,6 +21,7 @@
 #include "lvgl_eez/UiObjectMap.h"
 #include "page_descriptors.generated.h"
 #include "runtime/ScreenClient.h"
+#include "types/ScreenTypes.h"
 #include "ui_object_map.generated.h"
 
 #if defined(ARDUINO)
@@ -987,7 +988,7 @@ DeviceInfo build_device_info(demo::FrontendMode mode) {
     copy_text_safe(info.client_type, sizeof(info.client_type), demo::frontend_mode_name(mode));
     copy_text_safe(info.device_id, sizeof(info.device_id), deviceId);
     copy_text_safe(info.instance_id, sizeof(info.instance_id), instanceId);
-    info.capabilities = 0;
+    info.capabilities = SCREENLIB_CAP_PAGE_TRANSACTION;
     return info;
 }
 
@@ -1185,7 +1186,9 @@ bool send_snapshot_for_current_page() {
 bool send_attribute_change(uint32_t elementId,
                            const ElementAttributeValue& value,
                            AttributeChangeReason reason,
-                           uint32_t inReplyToRequest) {
+                           uint32_t inReplyToRequest,
+                           uint32_t pageId = 0,
+                           uint32_t sessionId = 0) {
     if (g_state.client == nullptr || g_state.offlineDemo || !g_state.client->connected()) {
         if (inReplyToRequest != 0) {
             char elementText[160] = {};
@@ -1203,8 +1206,8 @@ bool send_attribute_change(uint32_t elementId,
     Envelope& env = g_state.txEnvelope;
     reset_envelope(env);
     env.which_payload = Envelope_attribute_changed_tag;
-    env.payload.attribute_changed.session_id = g_state.currentSessionId;
-    env.payload.attribute_changed.page_id = g_state.currentPageId;
+    env.payload.attribute_changed.session_id = sessionId != 0 ? sessionId : g_state.currentSessionId;
+    env.payload.attribute_changed.page_id = pageId != 0 ? pageId : g_state.currentPageId;
     env.payload.attribute_changed.element_id = elementId;
     env.payload.attribute_changed.has_value = true;
     env.payload.attribute_changed.value = value;
@@ -1226,7 +1229,10 @@ bool send_attribute_change(uint32_t elementId,
     return ok;
 }
 
-bool send_attribute_reject(uint32_t elementId, uint32_t inReplyToRequest) {
+bool send_attribute_reject(uint32_t elementId,
+                           uint32_t inReplyToRequest,
+                           uint32_t pageId = 0,
+                           uint32_t sessionId = 0) {
     if (g_state.client == nullptr || g_state.offlineDemo || !g_state.client->connected()) {
         char elementText[160] = {};
         describe_element(elementId, elementText, sizeof(elementText));
@@ -1240,8 +1246,8 @@ bool send_attribute_reject(uint32_t elementId, uint32_t inReplyToRequest) {
     Envelope& env = g_state.txEnvelope;
     reset_envelope(env);
     env.which_payload = Envelope_attribute_changed_tag;
-    env.payload.attribute_changed.session_id = g_state.currentSessionId;
-    env.payload.attribute_changed.page_id = g_state.currentPageId;
+    env.payload.attribute_changed.session_id = sessionId != 0 ? sessionId : g_state.currentSessionId;
+    env.payload.attribute_changed.page_id = pageId != 0 ? pageId : g_state.currentPageId;
     env.payload.attribute_changed.element_id = elementId;
     env.payload.attribute_changed.has_value = false;
     env.payload.attribute_changed.reason = AttributeChangeReason_REASON_UNKNOWN;
@@ -1393,7 +1399,10 @@ void handle_set_element_attribute(const SetElementAttribute& cmd) {
                        static_cast<unsigned long>(cmd.request_id),
                        static_cast<unsigned long>(cmd.session_id));
         if (cmd.request_id != 0) {
-            send_attribute_reject(cmd.element_id, cmd.request_id);
+            send_attribute_reject(cmd.element_id,
+                                  cmd.request_id,
+                                  targetsPending ? g_state.pendingPage.pageId : 0,
+                                  targetsPending ? g_state.pendingPage.sessionId : 0);
         }
         return;
     }
@@ -1409,7 +1418,10 @@ void handle_set_element_attribute(const SetElementAttribute& cmd) {
                        static_cast<unsigned long>(cmd.request_id),
                        static_cast<unsigned long>(cmd.session_id));
         if (cmd.request_id != 0) {
-            send_attribute_reject(cmd.element_id, cmd.request_id);
+            send_attribute_reject(cmd.element_id,
+                                  cmd.request_id,
+                                  targetsPending ? g_state.pendingPage.pageId : 0,
+                                  targetsPending ? g_state.pendingPage.sessionId : 0);
         }
         return;
     }
@@ -1419,7 +1431,9 @@ void handle_set_element_attribute(const SetElementAttribute& cmd) {
             cmd.element_id,
             applied,
             AttributeChangeReason_REASON_COMMAND_APPLIED,
-            cmd.request_id);
+            cmd.request_id,
+            targetsPending ? g_state.pendingPage.pageId : 0,
+            targetsPending ? g_state.pendingPage.sessionId : 0);
     }
 }
 
@@ -1508,7 +1522,9 @@ void handle_text_chunk(const TextChunk& chunkMsg) {
         send_attribute_change(text.elementId,
                               applied,
                               AttributeChangeReason_REASON_COMMAND_APPLIED,
-                              text.requestId);
+                              text.requestId,
+                              textTargetsPending ? g_state.pendingPage.pageId : 0,
+                              textTargetsPending ? g_state.pendingPage.sessionId : 0);
     }
 }
 
